@@ -17,7 +17,9 @@
 
 package org.apache.jmeter.control;
 
+import org.apache.jmeter.exceptions.IllegalUserActionException;
 import org.apache.jmeter.gui.GuiPackage;
+import org.apache.jmeter.gui.tree.JMeterTreeModel;
 import org.apache.jmeter.gui.tree.JMeterTreeNode;
 import org.apache.jmeter.save.SaveService;
 import org.apache.jmeter.services.FileServer;
@@ -44,20 +46,21 @@ import java.util.List;
 
 public class ModularIncludeController extends GenericController implements ReplaceableController {
     private static final Logger log = LoggerFactory.getLogger(ModularIncludeController.class);
-   // private static final long serialVersionUID = 240L;
+   // private static final long serialVersionUID = 240L; //TODO what's that for?
 
-    private static final String NODE_PATH = "ModularIncludeController.node_path";// $NON-NLS-1$
-    private static final String INCLUDE_PATH = "ModularIncludeController.includepath"; //$NON-NLS-1$
+    private static final String NODE_PATH = "ModularIncludeController.node_path";
+    private static final String INCLUDE_PATH = "ModularIncludeController.includepath";
 
     private transient JMeterTreeNode selectedNode = null;
+    private TreeNode[] selectedPath = null;
 
     private static  final String PREFIX =
             JMeterUtils.getPropDefault(
-                    "includecontroller.prefix", //$NON-NLS-1$
-                    ""); //$NON-NLS-1$
+                    "includecontroller.prefix",
+                    "");
 
     private HashTree subtree = null;
-    private TestElement sub = null;
+    private JMeterTreeNode subtreeNode = null;
 
     /**
      * No-arg constructor
@@ -74,19 +77,9 @@ public class ModularIncludeController extends GenericController implements Repla
         ModularIncludeController clone = (ModularIncludeController) super.clone();
         clone.setIncludePath(this.getIncludePath());
         if (this.subtree != null) {
-            if (this.subtree.size() == 1) {
-                for (Object o : this.subtree.keySet()) {
-                    this.sub = (TestElement) o;
-                }
-            }
             clone.subtree = (HashTree)this.subtree.clone();
-            clone.sub = this.sub==null ? null : (TestElement) this.sub.clone();
+            clone.subtreeNode = (JMeterTreeNode) this.getSubtreeNode().clone(); // TODO clone will not have children/parents
         }
-        //return clone;
-
-
-
-        //ModularIncludeController clone = (ModularIncludeController) super.clone();
         if (selectedNode == null) {
             this.restoreSelected();
         }
@@ -112,18 +105,8 @@ public class ModularIncludeController extends GenericController implements Repla
         return this.getPropertyAsString(INCLUDE_PATH);
     }
 
-    /**
-     * The way ReplaceableController works is clone is called first,
-     * followed by replace(HashTree) and finally getReplacement().
-     */
-    /*
-    @Override
-    public HashTree getReplacementSubTree() {
-        return subtree;
-    }*/
-
-    public TestElement getReplacementElement() {
-        return sub;
+    public JMeterTreeNode getSubtreeNode() {
+        return subtreeNode;
     }
 
     /**
@@ -174,7 +157,7 @@ public class ModularIncludeController extends GenericController implements Repla
     private void restoreSelected() {
         GuiPackage gp = GuiPackage.getInstance();
         if (gp != null) {
-            JMeterTreeNode root = (JMeterTreeNode) gp.getTreeModel().getRoot();
+            JMeterTreeNode root = this.getSubtreeNode();
             resolveReplacementSubTree(root);
         }
     }
@@ -184,7 +167,14 @@ public class ModularIncludeController extends GenericController implements Repla
      */
     @Override
     public void resolveReplacementSubTree(JMeterTreeNode context) {
-        //this.subtree = this.loadIncludedElements();
+        this.subtree = this.loadIncludedElements();
+        if (subtree!=null) {
+            try {
+                this.subtreeNode = buildJMeterTreeNodeFromHashTree(this.subtree);
+            } catch (IllegalUserActionException e) {
+                e.printStackTrace();
+            }
+        }
         if (selectedNode == null) {
             List<?> nodePathList = getNodePath();
             if (nodePathList != null && !nodePathList.isEmpty()) {
@@ -226,8 +216,13 @@ public class ModularIncludeController extends GenericController implements Repla
     }
 
     /**
+     * The way ReplaceableController works is clone is called first,
+     * followed by replace(HashTree) and finally getReplacement().
+     */
+    /**
      * {@inheritDoc}
      */
+    // returns replacement node hash tree
     @Override
     public HashTree getReplacementSubTree() {
         HashTree tree = new ListedHashTree();
@@ -244,6 +239,40 @@ public class ModularIncludeController extends GenericController implements Repla
         }
         return tree;
     }
+
+    public JMeterTreeNode buildJMeterTreeNodeFromHashTree(HashTree tree) throws IllegalUserActionException {
+        JMeterTreeNode rootNode = new JMeterTreeNode();
+        rootNode.setUserObject(new TestPlan());
+        JMeterTreeModel model = new JMeterTreeModel();
+        model.setRoot(rootNode);
+        model = buildTreeModelFromSubTree(tree, (JMeterTreeNode) model.getRoot(), model);
+        return (JMeterTreeNode) model.getRoot();
+    }
+
+    public JMeterTreeModel buildTreeModelFromSubTree(HashTree subTree, JMeterTreeNode current, JMeterTreeModel model) throws IllegalUserActionException {
+        for (Object o : subTree.list()) {
+            TestElement item = (TestElement) o;
+            if (item instanceof TestPlan) {
+                TestPlan tp = (TestPlan) item;
+                current = (JMeterTreeNode)model.getRoot();
+                TestPlan userObj = new TestPlan();
+                current.setUserObject(userObj);
+                final TestPlan userObject = (TestPlan) current.getUserObject();
+                userObject.addTestElement(item);
+                userObject.setName(item.getName());
+                userObject.setFunctionalMode(tp.isFunctionalMode());
+                userObject.setSerialized(tp.isSerialized());
+                buildTreeModelFromSubTree(subTree.getTree(item), current, model);
+            }
+            else {
+                JMeterTreeNode newNode = new JMeterTreeNode(item, model);
+                model.insertNodeInto(newNode, current, current.getChildCount());
+                buildTreeModelFromSubTree(subTree.getTree(item), newNode, model);
+            }
+        }
+        return model;
+    }
+
 
     @SuppressWarnings("JdkObsolete")
     private void createSubTree(HashTree tree, JMeterTreeNode node) {
@@ -296,7 +325,7 @@ public class ModularIncludeController extends GenericController implements Repla
                         log.info("loadIncludedElements -Attempting to read it from: {}", file.getAbsolutePath());
                     }
                     if(!file.canRead() || !file.isFile()){
-                        log.error("Include Controller '{}' can't load '{}' - see log for details", this.getName(),
+                        log.error("Modular Include Controller '{}' can't load '{}' - see log for details", this.getName(),
                                 fileName);
                         throw new IOException("loadIncludedElements -failed for: " + absolutePath +
                                 " and " + file.getAbsolutePath());
@@ -305,8 +334,8 @@ public class ModularIncludeController extends GenericController implements Repla
 
                 tree = SaveService.loadTree(file);
                 // filter the tree for a TestFragment.
-                tree = getProperBranch(tree);
-                removeDisabledItems(tree);
+                //tree = getProperBranch(tree);
+                //removeDisabledItems(tree);
                 return tree;
             } catch (NoClassDefFoundError ex) // Allow for missing optional jars
             {
@@ -366,4 +395,6 @@ public class ModularIncludeController extends GenericController implements Repla
             }
         }
     }
+
+
 }

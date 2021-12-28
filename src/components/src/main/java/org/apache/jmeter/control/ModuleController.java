@@ -21,6 +21,7 @@ import java.util.ArrayList;
 import java.util.Enumeration;
 import java.util.List;
 
+import javax.swing.tree.MutableTreeNode;
 import javax.swing.tree.TreeNode;
 
 import org.apache.jmeter.gui.GuiPackage;
@@ -53,6 +54,7 @@ public class ModuleController extends GenericController implements ReplaceableCo
     private static final String NODE_PATH = "ModuleController.node_path";// $NON-NLS-1$
 
     private transient JMeterTreeNode selectedNode = null;
+    private TreeNode[] selectedPath = null;
 
     /**
      * No-arg constructor
@@ -123,6 +125,7 @@ public class ModuleController extends GenericController implements ReplaceableCo
         GuiPackage gp = GuiPackage.getInstance();
         if (gp != null) {
             JMeterTreeNode root = (JMeterTreeNode) gp.getTreeModel().getRoot();
+            //JMeterTreeNode root =  cloneTreeNode((JMeterTreeNode) gp.getTreeModel().getRoot());
             resolveReplacementSubTree(root);
         }
     }
@@ -157,18 +160,24 @@ public class ModuleController extends GenericController implements ReplaceableCo
 
     private void traverse(JMeterTreeNode node, List<?> nodePath, int level) {
         if (node != null && nodePath.size() > level) {
-            for (int i = 0; i < node.getChildCount(); i++) {
-                JMeterTreeNode cur = (JMeterTreeNode) node.getChildAt(i);
-                // Bug55375 - don't allow selectedNode to be a ModuleController as can cause recursion
-                if (!(cur.getTestElement() instanceof ModuleController)) {
-                    if (cur.getName().equals(nodePath.get(level).toString())) {
-                        if (nodePath.size() == (level + 1)) {
-                            selectedNode = cur;
+            if (node.getTestElement() instanceof ImportController && ((ImportController) node.getTestElement()).getSubtreeNode()!=null) {
+                JMeterTreeNode originalNode = node;
+                node = (JMeterTreeNode) originalNode.clone();
+                node.setParent((MutableTreeNode) originalNode.getParent());
+                node.add(((ImportController) originalNode.getTestElement()).getSubtreeNode()); //original subtree node
+            }
+                for (int i = 0; i < node.getChildCount(); i++) {
+                    JMeterTreeNode cur = (JMeterTreeNode) node.getChildAt(i);
+                    // Bug55375 - don't allow selectedNode to be a ModuleController as can cause recursion
+                    if (!(cur.getTestElement() instanceof ModuleController)) {
+                        if (cur.getName().equals(nodePath.get(level).toString())) {
+                            if (nodePath.size() == (level + 1)) {
+                                selectedNode = cur;
+                            }
+                            traverse(cur, nodePath, level + 1);
                         }
-                        traverse(cur, nodePath, level + 1);
                     }
                 }
-            }
         }
     }
 
@@ -215,6 +224,9 @@ public class ModuleController extends GenericController implements ReplaceableCo
         while (enumr.hasMoreElements()) {
             JMeterTreeNode child = (JMeterTreeNode) enumr.nextElement();
             JMeterTreeNode childClone = (JMeterTreeNode) child.clone();
+            if (child.getTestElement() instanceof ImportController && ((ImportController) child.getTestElement()).getSubtreeNode()!=null) {
+                childClone.add(((ImportController) child.getTestElement()).getSubtreeNode());
+            }
             childClone.setUserObject(((TestElement) child.getUserObject()).clone());
             to.add(childClone);
             cloneChildren((JMeterTreeNode) to.getLastChild(), child);
