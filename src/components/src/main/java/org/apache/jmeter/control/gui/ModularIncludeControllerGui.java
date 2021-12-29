@@ -422,15 +422,13 @@ public class ModularIncludeControllerGui extends AbstractControllerGui /* implem
                 else if ( te instanceof TestFragmentController
                         || te instanceof AbstractThreadGroup
                         || (te instanceof Controller
-                        && !(te instanceof ModularIncludeController)
-                        && !(te instanceof ModuleController)
+                        && !(te instanceof ReplaceableController)
                         && level > 0)) {
                     DefaultMutableTreeNode newNode = new DefaultMutableTreeNode(cur);
                      parent.add(newNode);
                     buildTreeNodeModel(cur, level + 1, newNode);
                     final boolean isController = te instanceof Controller
-                            && !(te instanceof ModularIncludeController
-                            && !(te instanceof ModuleController)
+                            && !(te instanceof ReplaceableController
                             || te instanceof AbstractThreadGroup);
                     hasAtLeastOneController =
                             hasAtLeastOneController || isController;

@@ -22,9 +22,7 @@ import java.awt.Dimension;
 import java.awt.FlowLayout;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
-import java.util.ArrayList;
 import java.util.Collection;
-import java.util.Enumeration;
 import java.util.Iterator;
 
 import javax.swing.Box;
@@ -36,17 +34,20 @@ import javax.swing.JPanel;
 import javax.swing.JPopupMenu;
 import javax.swing.JTree;
 import javax.swing.SwingConstants;
-import javax.swing.tree.*;
+import javax.swing.tree.DefaultMutableTreeNode;
+import javax.swing.tree.DefaultTreeCellRenderer;
+import javax.swing.tree.DefaultTreeModel;
+import javax.swing.tree.DefaultTreeSelectionModel;
+import javax.swing.tree.TreeNode;
+import javax.swing.tree.TreePath;
+import javax.swing.tree.TreeSelectionModel;
 
 import org.apache.jmeter.control.Controller;
-import org.apache.jmeter.control.ImportController;
 import org.apache.jmeter.control.ModuleController;
 import org.apache.jmeter.control.TestFragmentController;
-import org.apache.jmeter.exceptions.IllegalUserActionException;
 import org.apache.jmeter.gui.GUIMenuSortOrder;
 import org.apache.jmeter.gui.GuiPackage;
 import org.apache.jmeter.gui.TestElementMetadata;
-import org.apache.jmeter.gui.tree.JMeterTreeModel;
 import org.apache.jmeter.gui.tree.JMeterTreeNode;
 import org.apache.jmeter.gui.util.MenuFactory;
 import org.apache.jmeter.gui.util.MenuInfo;
@@ -54,7 +55,6 @@ import org.apache.jmeter.testelement.TestElement;
 import org.apache.jmeter.testelement.TestPlan;
 import org.apache.jmeter.threads.AbstractThreadGroup;
 import org.apache.jmeter.util.JMeterUtils;
-import org.apache.jorphan.collections.HashTree;
 import org.apache.jorphan.gui.JFactory;
 import org.apache.jorphan.gui.layout.VerticalLayout;
 
@@ -330,7 +330,6 @@ public class ModuleControllerGui extends AbstractControllerGui implements Action
             DefaultMutableTreeNode child = (DefaultMutableTreeNode) parent.getChildAt(i);
             JMeterTreeNode childUserObj = (JMeterTreeNode) child.getUserObject();
 
-            //if (childUserObj.getName().equals(searchedTreeNode.getName())){
             if (childUserObj.equals(searchedTreeNode)) {
                 if (level == (testPlanPath.length - 1)) {
                     return child.getPath();
@@ -409,36 +408,13 @@ public class ModuleControllerGui extends AbstractControllerGui implements Action
     private void buildTreeNodeModel(JMeterTreeNode node, int level,
             DefaultMutableTreeNode parent) {
         if (node != null) {
-
-            if (node.getTestElement() instanceof ImportController &&
-                    ((ImportController) node.getTestElement()).getSubtreeNode()!=null && node.getChildCount()==0){
-                    JMeterTreeNode originalNode = node;
-                    node = (JMeterTreeNode) originalNode.clone();
-                    //node.setUserObject(originalNode.getTestElement());
-                    JMeterTreeNode subtreeNode = ((ImportController) originalNode.getTestElement()).getSubtreeNode();
-                    subtreeNode.setParent(null);
-                    node.add(subtreeNode);
-            }
-
             for (int i = 0; i < node.getChildCount(); i++) {
                 JMeterTreeNode cur = (JMeterTreeNode) node.getChildAt(i);
                 TestElement te = cur.getTestElement();
-                if ((te instanceof TestPlan && cur.getParent()!=null && !(((JMeterTreeNode)cur.getParent()).getTestElement() instanceof TestPlan))
-                        || te instanceof TestFragmentController
+                if (te instanceof TestFragmentController
                         || te instanceof AbstractThreadGroup
                         || (te instanceof Controller
                                 && !(te instanceof ModuleController) && level > 0)) {
-/*
-                    if (cur.getTestElement() instanceof ImportController &&
-                            ((ImportController) cur.getTestElement()).getSubtreeNode()!=null && cur.getChildCount()==0){
-                        JMeterTreeNode originalCurNode = cur;
-                        cur = (JMeterTreeNode) originalCurNode.clone();
-                        //cur.setParent((MutableTreeNode) originalCurNode.getParent());
-                        JMeterTreeNode subtreeNode = ((ImportController) originalCurNode.getTestElement()).getSubtreeNode();
-                        //subtreeNode.setParent(null);
-                        cur.add(subtreeNode); // original subtree
-                    }
-*/
                     DefaultMutableTreeNode newNode = new DefaultMutableTreeNode(cur);
                     parent.add(newNode);
                     buildTreeNodeModel(cur, level + 1, newNode);

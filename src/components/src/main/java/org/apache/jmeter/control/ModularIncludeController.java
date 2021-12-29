@@ -32,6 +32,7 @@ import org.apache.jmeter.util.JMeterUtils;
 import org.apache.jorphan.collections.HashTree;
 import org.apache.jorphan.collections.ListedHashTree;
 import org.apache.jorphan.util.JMeterStopTestException;
+import org.bouncycastle.math.raw.Mod;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -265,6 +266,14 @@ public class ModularIncludeController extends GenericController implements Repla
                 buildTreeModelFromSubTree(subTree.getTree(item), current, model);
             }
             else {
+                if (item instanceof ReplaceableController && this.subtreeNode!=null){
+                    // adding root Test Plan to match the node path
+                    JMeterTreeNode testPlanRootNode = new JMeterTreeNode();
+                    testPlanRootNode.setUserObject(new TestPlan());
+                    testPlanRootNode.add(cloneTreeNode(this.subtreeNode)); // clone to not affect selection tree
+
+                    ((ReplaceableController) item).resolveReplacementSubTree(testPlanRootNode);
+                }
                 JMeterTreeNode newNode = new JMeterTreeNode(item, model);
                 model.insertNodeInto(newNode, current, current.getChildCount());
                 buildTreeModelFromSubTree(subTree.getTree(item), newNode, model);
