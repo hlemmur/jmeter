@@ -352,15 +352,10 @@ public class ModularIncludeControllerGui extends AbstractControllerGui /* implem
     private void focusSelectedOnTree(JMeterTreeNode selected)
     {
         TreeNode[] path = selected.getPath();
-        TreeNode[] filteredPath = new TreeNode[path.length-1];
-
-        //ignore first element of path - WorkBench, (why WorkBench is appearing in the path ???)
-        System.arraycopy(path, 1, filteredPath, 0, path.length - 1);
-
         DefaultMutableTreeNode root = (DefaultMutableTreeNode) moduleToRunTreeNodes.getModel().getRoot();
         //treepath of test plan tree and module to run tree cannot be compared directly - moduleToRunTreeModel.getPathToRoot()
         //custom method for finding an JMeterTreeNode element in DefaultMutableTreeNode have to be used
-        TreeNode[] dmtnPath = this.findPathInTreeModel(1, filteredPath, root);
+        TreeNode[] dmtnPath = this.findPathInTreeModel(1, path, root);
         if (dmtnPath.length > 0) {
             TreePath treePath = new TreePath(dmtnPath);
             moduleToRunTreeNodes.setSelectionPath(treePath);
@@ -379,7 +374,10 @@ public class ModularIncludeControllerGui extends AbstractControllerGui /* implem
     private void reinitialize(ModularIncludeController controller) {
         ((DefaultMutableTreeNode) moduleToRunTreeModel.getRoot()).removeAllChildren();
 
-        buildTreeNodeModel(controller.getSubtreeNode(), 0, null);
+        ((DefaultMutableTreeNode) moduleToRunTreeModel.getRoot())
+                .setUserObject(controller.getSubtreeNode());
+
+        buildTreeNodeModel(controller.getSubtreeNode(), 0, (DefaultMutableTreeNode) moduleToRunTreeModel.getRoot());
         moduleToRunTreeModel.nodeStructureChanged((TreeNode) moduleToRunTreeModel.getRoot());
 
         if (selected != null) {
@@ -413,13 +411,14 @@ public class ModularIncludeControllerGui extends AbstractControllerGui /* implem
             for (int i = 0; i < node.getChildCount(); i++) {
                 JMeterTreeNode cur = (JMeterTreeNode) node.getChildAt(i);
                 TestElement te = cur.getTestElement();
-                if (parent==null){
+                /*
+                if (parent==null){ // sets the very first / root node in external tree as a root for new tree model GUI
                     ((DefaultMutableTreeNode) moduleToRunTreeModel.getRoot())
                             .setUserObject(cur);
                     buildTreeNodeModel(cur, level + 1,
                             (DefaultMutableTreeNode) moduleToRunTreeModel.getRoot());
                 }
-                else if ( te instanceof TestFragmentController
+                else*/ if ( te instanceof TestFragmentController
                         || te instanceof AbstractThreadGroup
                         || (te instanceof Controller
                         && !(te instanceof ReplaceableController)
