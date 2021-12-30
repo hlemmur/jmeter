@@ -89,6 +89,15 @@ public class ModularIncludeController extends GenericController implements Repla
         return clone;
     }
 
+    public void reset(){
+        this.selectedNode=null;
+        this.subtreeNode=null;
+        this.selectedPath=null;
+        this.subtree=null;
+        this.removeProperty(NODE_PATH);
+        this.clearTestElementChildren();
+    }
+
     /**
      * In the event an user wants to include an external JMX test plan
      * the GUI would call this.

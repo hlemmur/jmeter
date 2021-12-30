@@ -18,11 +18,9 @@
 package org.apache.jmeter.control.gui;
 
 import org.apache.jmeter.control.*;
-import org.apache.jmeter.exceptions.IllegalUserActionException;
 import org.apache.jmeter.gui.GUIMenuSortOrder;
 import org.apache.jmeter.gui.GuiPackage;
 import org.apache.jmeter.gui.TestElementMetadata;
-import org.apache.jmeter.gui.tree.JMeterTreeModel;
 import org.apache.jmeter.gui.tree.JMeterTreeNode;
 import org.apache.jmeter.gui.util.FilePanel;
 import org.apache.jmeter.gui.util.MenuFactory;
@@ -31,7 +29,6 @@ import org.apache.jmeter.testelement.TestElement;
 import org.apache.jmeter.testelement.TestPlan;
 import org.apache.jmeter.threads.AbstractThreadGroup;
 import org.apache.jmeter.util.JMeterUtils;
-import org.apache.jorphan.collections.HashTree;
 import org.apache.jorphan.gui.JFactory;
 import org.apache.jorphan.gui.layout.VerticalLayout;
 
@@ -39,14 +36,12 @@ import javax.swing.*;
 import javax.swing.tree.*;
 
 import java.awt.*;
-import java.awt.event.ActionEvent;
-import java.awt.event.ActionListener;
 import java.util.Collection;
 import java.util.Iterator;
 
 @GUIMenuSortOrder(MenuInfo.SORT_ORDER_DEFAULT+2)
 @TestElementMetadata(labelResource = "modular_include_controller_title")
-public class ModularIncludeControllerGui extends AbstractControllerGui /* implements ActionListener */ { // NOSONAR Ignore parent warning
+public class ModularIncludeControllerGui extends AbstractControllerGui /* implements ActionListener*/  { // NOSONAR Ignore parent warning
     //private static final long serialVersionUID = -4195441608252523573L; // TODO what's that for?
 
     private final FilePanel includePanel =
@@ -76,14 +71,14 @@ public class ModularIncludeControllerGui extends AbstractControllerGui /* implem
     private final JLabel warningLabel;
 
     /**
-     * Helps navigating test plan
-     */
-   // private JButton expandButton;
-
-    /**
      * Use this to warn about no selectable controller
      */
     private boolean hasAtLeastOneController;
+
+    /**
+     * indicates if it's time to reset test element state (on file change for example)
+     */
+    private boolean doReset = false;
 
     /**
      * Initializes the gui panel for the ModularIncludeController instance.
@@ -153,13 +148,14 @@ public class ModularIncludeControllerGui extends AbstractControllerGui /* implem
         moduleToRunTreeNodes.addTreeSelectionListener(
                 evt -> {
                     warningLabel.setVisible(false);
-                    //expandButton.setEnabled(true);
                 });
         includePanel.addChangeListener(
                 evt -> {
-                    //reload tree of external test plan!
+                    // reset the test element on external file selection and refresh gui correspondingly
+                    // TODO skip on initial creation?
                     selected = null;
                     moduleToRunTreeNodes.clearSelection();
+                    doReset = true; // affects this.configure() called by updateCurrentGui()
                     GuiPackage.getInstance().updateCurrentGui();
                 });
     }
@@ -177,19 +173,25 @@ public class ModularIncludeControllerGui extends AbstractControllerGui /* implem
         hasAtLeastOneController = false;
         ModularIncludeController controller = (ModularIncludeController) el;
         this.includePanel.setFilename(controller.getIncludePath());
+
+        if (doReset){
+            controller.reset();
+            doReset =false;
+        }
+
         this.selected = controller.getSelectedNode();
         if (this.includePanel.getFilename().equals("") || this.includePanel.getFilename()==null){
             moduleToRunTreeNodes.setVisible(false);
+            warningLabel.setVisible(false);
         }
         else if (selected == null && controller.getNodePath() != null) {
             warningLabel.setText(JMeterUtils.getResString("modular_include_controller_warning") // $NON-NLS-1$
                     + renderPath(controller.getNodePath()));
             warningLabel.setVisible(true);
-            //expandButton.setEnabled(false);
-        } else {
+        }
+        else {
             warningLabel.setVisible(false);
             moduleToRunTreeNodes.setVisible(true);
-            //expandButton.setEnabled(true);
         }
         reinitialize(controller);
     }
@@ -288,11 +290,8 @@ public class ModularIncludeControllerGui extends AbstractControllerGui /* implem
 
         JPanel modulesPanel = new JPanel();
 
-        // TODO replace expand button with tree refresh button?
-        /*
-        expandButton = new JButton(JMeterUtils.getResString("find_target_element")); //$NON-NLS-1$
-        expandButton.addActionListener(this);
-        modulesPanel.add(expandButton);*/
+        // TODO add tree refresh button?
+        // TODO button to open imported jmx file in new jmeter gui instance?
         modulesPanel.setLayout(new BoxLayout(modulesPanel, BoxLayout.Y_AXIS));
         modulesPanel.add(Box.createRigidArea(new Dimension(0,5)));
 
@@ -411,14 +410,7 @@ public class ModularIncludeControllerGui extends AbstractControllerGui /* implem
             for (int i = 0; i < node.getChildCount(); i++) {
                 JMeterTreeNode cur = (JMeterTreeNode) node.getChildAt(i);
                 TestElement te = cur.getTestElement();
-                /*
-                if (parent==null){ // sets the very first / root node in external tree as a root for new tree model GUI
-                    ((DefaultMutableTreeNode) moduleToRunTreeModel.getRoot())
-                            .setUserObject(cur);
-                    buildTreeNodeModel(cur, level + 1,
-                            (DefaultMutableTreeNode) moduleToRunTreeModel.getRoot());
-                }
-                else*/ if ( te instanceof TestFragmentController
+                if ( te instanceof TestFragmentController
                         || te instanceof AbstractThreadGroup
                         || (te instanceof Controller
                         && !(te instanceof ReplaceableController)
@@ -443,43 +435,6 @@ public class ModularIncludeControllerGui extends AbstractControllerGui /* implem
     }
 
     /**
-     * Implementation of Expand button: <br>
-     * moves focus to a test plan tree element referenced by selected element in Module to run tree
-     */
-/*
-    @Override
-    public void actionPerformed(ActionEvent e) {
-        if (e.getSource() == expandButton) {
-            DefaultMutableTreeNode currentSelectedNodeInMC = (DefaultMutableTreeNode)
-                    this.moduleToRunTreeNodes.getLastSelectedPathComponent();
-            JMeterTreeNode nodeToExpandInTestPlanTree = null;
-            if (currentSelectedNodeInMC != null && currentSelectedNodeInMC.getUserObject() instanceof JMeterTreeNode){
-                nodeToExpandInTestPlanTree = (JMeterTreeNode) currentSelectedNodeInMC.getUserObject();
-            }
-            if (nodeToExpandInTestPlanTree != null){
-                TreePath treePath = new TreePath(nodeToExpandInTestPlanTree.getPath());
-                //changing selection in a test plan tree
-                GuiPackage.getInstance().getTreeListener().getJTree()
-                        .setSelectionPath(treePath);
-                //expanding tree to make referenced element visible in test plan tree
-                GuiPackage.getInstance().getTreeListener().getJTree()
-                        .scrollPathToVisible(treePath);
-            }
-        }
-    }
-*/
-    /**
-     * @param selected JMeterTreeNode tree node to expand
-     */
-    /*
-    protected void expandToSelectNode(JMeterTreeNode selected) {
-        GuiPackage guiInstance = GuiPackage.getInstance();
-        JTree jTree = guiInstance.getMainFrame().getTree();
-        jTree.expandPath(new TreePath(selected.getPath()));
-        selected.setMarkedBySearch(true);
-    }
-*/
-    /**
      * Renderer class for printing "module to run" tree
      */
     private static class ModularIncludeControllerCellRenderer extends DefaultTreeCellRenderer { // NOSONAR Ignore parent warning
@@ -499,6 +454,7 @@ public class ModularIncludeControllerGui extends AbstractControllerGui /* implem
                         hasFocus);
                 //print same icon as in test plan tree
                 boolean enabled = node.isEnabled();
+                // TODO ? if icon not found (no test plan in the file - exception should be handled) java.lang.ClassNotFoundException
                 ImageIcon icon = node.getIcon(enabled);
                 if (icon != null) {
                     if (enabled) {
