@@ -165,11 +165,8 @@ public class ModularIncludeController extends GenericController implements Repla
     }
 
     private void restoreSelected() {
-        GuiPackage gp = GuiPackage.getInstance();
-        if (gp != null) {
-            JMeterTreeNode root = this.getSubtreeNode();
-            resolveReplacementSubTree(root);
-        }
+        JMeterTreeNode root = this.getSubtreeNode();
+        resolveReplacementSubTree(root);
     }
 
     /**
@@ -177,12 +174,17 @@ public class ModularIncludeController extends GenericController implements Repla
      */
     @Override
     public void resolveReplacementSubTree(JMeterTreeNode context) {
-        this.subtree = this.loadIncludedElements();
-        if (subtree!=null) {
-            try {
-                this.subtreeNode = buildJMeterTreeNodeFromHashTree(this.subtree);
-            } catch (IllegalUserActionException e) {
-                e.printStackTrace();
+        // prevents from multiple cloning already resolved node
+        // TODO probably needs to add check if existing subtree is relevant to selected file - for ex. when the file changed?
+        if (subtree==null) {
+            this.subtree = this.loadIncludedElements();
+
+            if (subtree != null) {
+                try {
+                    this.subtreeNode = buildJMeterTreeNodeFromHashTree(this.subtree);
+                } catch (IllegalUserActionException e) {
+                    e.printStackTrace();
+                }
             }
         }
         if (selectedNode == null) {
@@ -276,7 +278,7 @@ public class ModularIncludeController extends GenericController implements Repla
             }
             else {
                 if (item instanceof ReplaceableController && this.subtreeNode!=null){
-                    // adding root Test Plan to match the node path
+                    // adding (external) root Test Plan to match the (external) node path
                     JMeterTreeNode testPlanRootNode = new JMeterTreeNode();
                     testPlanRootNode.setUserObject(new TestPlan());
                     testPlanRootNode.add(cloneTreeNode(this.subtreeNode)); // clone to not affect selection tree
