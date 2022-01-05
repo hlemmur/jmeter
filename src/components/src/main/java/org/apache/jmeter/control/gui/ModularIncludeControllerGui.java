@@ -17,7 +17,32 @@
 
 package org.apache.jmeter.control.gui;
 
-import org.apache.jmeter.control.*;
+import java.awt.Component;
+import java.awt.Dimension;
+import java.awt.FlowLayout;
+import java.util.Collection;
+import java.util.Iterator;
+
+import javax.swing.Box;
+import javax.swing.BoxLayout;
+import javax.swing.ImageIcon;
+import javax.swing.JLabel;
+import javax.swing.JPanel;
+import javax.swing.JPopupMenu;
+import javax.swing.JTree;
+import javax.swing.SwingConstants;
+import javax.swing.tree.DefaultMutableTreeNode;
+import javax.swing.tree.DefaultTreeCellRenderer;
+import javax.swing.tree.DefaultTreeModel;
+import javax.swing.tree.DefaultTreeSelectionModel;
+import javax.swing.tree.TreeNode;
+import javax.swing.tree.TreePath;
+import javax.swing.tree.TreeSelectionModel;
+
+import org.apache.jmeter.control.Controller;
+import org.apache.jmeter.control.ModularIncludeController;
+import org.apache.jmeter.control.ReplaceableController;
+import org.apache.jmeter.control.TestFragmentController;
 import org.apache.jmeter.gui.GUIMenuSortOrder;
 import org.apache.jmeter.gui.GuiPackage;
 import org.apache.jmeter.gui.TestElementMetadata;
@@ -32,12 +57,6 @@ import org.apache.jmeter.util.JMeterUtils;
 import org.apache.jorphan.gui.JFactory;
 import org.apache.jorphan.gui.layout.VerticalLayout;
 
-import javax.swing.*;
-import javax.swing.tree.*;
-
-import java.awt.*;
-import java.util.Collection;
-import java.util.Iterator;
 
 @GUIMenuSortOrder(MenuInfo.SORT_ORDER_DEFAULT+2)
 @TestElementMetadata(labelResource = "modular_include_controller_title")
@@ -388,9 +407,6 @@ public class ModularIncludeControllerGui extends AbstractControllerGui /* implem
             warningLabel.setVisible(true);
         }
     }
-
-
-
     /**
      * Recursively build module to run tree. <br/>
      * Only 4 types of elements are allowed to be added:
