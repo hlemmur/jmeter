@@ -1232,12 +1232,17 @@ public class JMeter implements JMeterPlugin {
         ReplaceableController rc;
         // TODO this bit of code needs to be tidied up
         // Unfortunately ModuleController is in components, not core
-        if ("org.apache.jmeter.control.ModuleController".equals(item.getClass().getName())){ // NOSONAR (comparison is intentional) Bug 47165
+        if ("org.apache.jmeter.control.ModuleController".equals(item.getClass().getName()))
+        { // NOSONAR (comparison is intentional) Bug 47165
             rc = (ReplaceableController) item;
-        } else {
+        }
+        else if ("org.apache.jmeter.control.ModuleIncludeController".equals(item.getClass().getName())){
             // HACK: force the controller to load its tree
             rc = (ReplaceableController) item.clone();
+            log.info("it's a ModularIncludeController!");
         }
+        else
+            rc = (ReplaceableController) item.clone();
         return rc;
     }
 

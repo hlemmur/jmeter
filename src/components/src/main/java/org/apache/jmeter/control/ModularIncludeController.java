@@ -17,6 +17,15 @@
 
 package org.apache.jmeter.control;
 
+import java.io.File;
+import java.io.FileNotFoundException;
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Enumeration;
+import java.util.List;
+
+import javax.swing.tree.TreeNode;
+
 import org.apache.jmeter.exceptions.IllegalUserActionException;
 import org.apache.jmeter.gui.GuiPackage;
 import org.apache.jmeter.gui.tree.JMeterTreeModel;
@@ -32,18 +41,8 @@ import org.apache.jmeter.util.JMeterUtils;
 import org.apache.jorphan.collections.HashTree;
 import org.apache.jorphan.collections.ListedHashTree;
 import org.apache.jorphan.util.JMeterStopTestException;
-import org.bouncycastle.math.raw.Mod;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
-import javax.swing.tree.TreeNode;
-
-import java.io.File;
-import java.io.FileNotFoundException;
-import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Enumeration;
-import java.util.List;
 
 public class ModularIncludeController extends GenericController implements ReplaceableController {
     private static final Logger log = LoggerFactory.getLogger(ModularIncludeController.class);
@@ -207,6 +206,7 @@ public class ModularIncludeController extends GenericController implements Repla
      * @return true if replacement occurred at the time method is called
      */
     private boolean hasReplacementOccured() {
+        log.info("isRunningVersion: " + isRunningVersion());
         return GuiPackage.getInstance() == null || isRunningVersion();
     }
 
