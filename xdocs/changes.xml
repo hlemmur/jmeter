@@ -61,7 +61,7 @@ Summary
 <ch_section>New and Noteworthy</ch_section>
 <p>JMeter now supports Java 17</p>
 
-<p>JMeter 5.5 ships with log4j2 2.17</p>
+<p>JMeter 5.5 ships with log4j2 2.17.1</p>
 
 <p>New component: <code><a href="./usermanual/component_reference.html#Open_Model_Thread_Group">Open Model Thread Group</a></code>
 allows creating load profiles with variable load.</p>
@@ -175,7 +175,7 @@ however, the profile can't be updated while the test is running.
   <li>Updated json-path to 2.6.0 (from 2.4.0).</li>
   <li>Updated jsoup to 1.14.1 (from 1.13.1).</li>
   <li>Updated JUnit to 4.13.2 and 5.8.1 (from 4.13.1 and 5.7.0).</li>
-  <li>Updated Apache log4j2 to 2.17.0 (from 2.13.3).</li>
+  <li>Updated Apache log4j2 to 2.17.1 (from 2.13.3).</li>
   <li>Updated Miglayout to 5.3 (from 5.2).</li>
   <li>Updated Neo4j Java driver to 4.3.3 (from 4.2.0).</li>
   <li>Updated Objenesis to 3.2 (from 2.6).</li>
@@ -194,6 +194,7 @@ however, the profile can't be updated while the test is running.
   <li><pr>654</pr>Try do give better feedback while loading keystores</li>
   <li><pr>672</pr>Add more details to documentation for timeShift function. Contributed by Mariusz (mawasak at gmail.com)</li>
   <li>Updated Gradle to 7.3 (from 7.2)</li>
+  <li><pr>689</pr>Code clean up in StringFromFile. Contributed by Sampath Kumar Krishnasamy (sampathkumar.krishnasamykuppusamy at aexp.com)</li>
 </ul>
 
  <!-- =================== Bug fixes =================== -->
@@ -223,6 +224,7 @@ however, the profile can't be updated while the test is running.
 <h3>Listeners</h3>
 <ul>
   <li><bug>64962</bug>Save CSV sub-results recursively from View Results Tree</li>
+  <li><bug>65784</bug>No Graphs displayed in Aggregate Report/Response Time Graph</li>
 </ul>
 
 <h3>Timers, Assertions, Config, Pre- &amp; Post-Processors</h3>
@@ -233,6 +235,7 @@ however, the profile can't be updated while the test is running.
   <li><bug>65352</bug>Warning logged when Boundary Extractor doesn't find any match</li>
   <li><bug>65681</bug>Use default values for null values when extracting with JSONPostProcessor</li>
   <li>Allow setters in ConstantThroughputTimer to updating the values during the run time</li>
+  <li><bug>65782</bug>Use correct message format for MessageFormat in HTMLAssertion</li>
 </ul>
 
 <h3>Functions</h3>
@@ -290,6 +293,8 @@ however, the profile can't be updated while the test is running.
   <li>Woonsan Ko (woonsan.ko at bloomreach.com)</li>
   <li>Chromico Rek (atech5122 at gmail.com)</li>
   <li>Magnus Spångdal (magnus.spangdal as avanza.se)</li>
+  <li>Piotr Smietana (piotrsmietana1998 at gmail.com)</li>
+  <li>Sampath Kumar Krishnasamy (sampathkumar.krishnasamykuppusamy at aexp.com)</li>
 </ul>
 <p>We also thank bug reporters who helped us improve JMeter.</p>
 <ul>
