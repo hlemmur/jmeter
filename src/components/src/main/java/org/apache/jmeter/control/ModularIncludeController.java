@@ -54,7 +54,7 @@ public class ModularIncludeController extends GenericController implements Repla
 
     private transient JMeterTreeNode selectedNode = null;
     private TreeNode[] selectedPath = null;
-    private static boolean isNestedReplacebleResolved = false;
+    private boolean isNestedReplacebleResolved = false;
 
     private static  final String PREFIX =
             JMeterUtils.getPropDefault(
@@ -80,12 +80,7 @@ public class ModularIncludeController extends GenericController implements Repla
         clone.setIncludePath(this.getIncludePath());
         if (this.subtree != null) {
             clone.subtree = (HashTree)this.subtree.clone();
-            if (this.subtreeNode != null) {
-                clone.subtreeNode = (JMeterTreeNode) this.getSubtreeNode().clone(); // TODO clone will not have children/parents
-            }
-        }
-        else{
-            loadExternalTree();
+            clone.subtreeNode = (JMeterTreeNode) this.getSubtreeNode().clone(); // TODO clone will not have children/parents
         }
         if (selectedNode == null) {
             this.restoreSelected();
@@ -180,7 +175,19 @@ public class ModularIncludeController extends GenericController implements Repla
      */
     @Override
     public void resolveReplacementSubTree(JMeterTreeNode context) {
-        //loadExternalTree();
+        // prevents from multiple cloning already resolved node
+        // TODO probably needs to add check if existing subtree is relevant to selected file - for ex. when the file changed?
+        if (subtree==null) {
+            this.subtree = this.loadIncludedElements();
+        }
+            if (subtree != null && !isNestedReplacebleResolved) {
+                try {
+                    this.subtreeNode = buildJMeterTreeNodeFromHashTree(this.subtree);
+                } catch (IllegalUserActionException e) {
+                    e.printStackTrace();
+                }
+            }
+        //}
 
         if (selectedNode == null) {
             List<?> nodePathList = getNodePath();
@@ -193,24 +200,6 @@ public class ModularIncludeController extends GenericController implements Repla
                 throw new JMeterStopTestException("ModularIncludeController:"
                         + getName()
                         + " has no selected Controller (did you rename some element in the path to target controller?), test was shutdown as a consequence");
-                }
-            }
-        }
-    }
-
-    private void loadExternalTree(){
-        // prevents from multiple cloning already resolved node
-        // TODO probably needs to add check if existing subtree is relevant to selected file - for ex. when the file changed?
-        if (subtree==null) {
-            this.subtree = this.loadIncludedElements();
-        }
-
-        if (subtree != null) {
-            while (!isNestedReplacebleResolved) {
-                try {
-                    this.subtreeNode = buildJMeterTreeNodeFromHashTree(this.subtree);
-                } catch (IllegalUserActionException e) {
-                    e.printStackTrace();
                 }
             }
         }
@@ -286,7 +275,7 @@ public class ModularIncludeController extends GenericController implements Repla
     }
 
     public JMeterTreeNode buildJMeterTreeNodeFromHashTree(HashTree tree) throws IllegalUserActionException {
-        log.info("buildJMeterTreeNodeFromHashTree: " + String.valueOf(++count));
+        log.info("buildJMeterTreeNodeFromHashTree: " + ++count);
         JMeterTreeNode rootNode = new JMeterTreeNode();
         rootNode.setUserObject(new TestPlan());
         JMeterTreeModel model = new JMeterTreeModel();
@@ -295,7 +284,7 @@ public class ModularIncludeController extends GenericController implements Repla
         return (JMeterTreeNode) model.getRoot();
     }
 
-    public JMeterTreeModel buildTreeModelFromSubTree(HashTree subTree, JMeterTreeNode current, JMeterTreeModel model) throws IllegalUserActionException {
+    public JMeterTreeModel buildTreeModelFromSubTree(HashTree subTree, JMeterTreeNode current, JMeterTreeModel model) {
         for (Object o : subTree.list()) {
             TestElement item = (TestElement) o;
             if (item instanceof TestPlan) {
@@ -311,16 +300,14 @@ public class ModularIncludeController extends GenericController implements Repla
                 buildTreeModelFromSubTree(subTree.getTree(item), current, model);
             }
             else {
-                if (item instanceof ReplaceableController) {
-                    if (this.subtreeNode!=null) {
-                        //here and only here the nested replacebles are resolved. it can't be done within resolvable element itself because then
-                        // they try to find selected traversing the current gui tree, not external one
-                        ((ReplaceableController) item).resolveReplacementSubTree(this.subtreeNode);
-                        isNestedReplacebleResolved = true;
-                    }
-                    else {
-                        isNestedReplacebleResolved = false;
-                    }
+                if (item instanceof ReplaceableController && this.subtreeNode!=null){
+                    // adding (external) root Test Plan to match the (external) node path
+                    JMeterTreeNode testPlanRootNode = new JMeterTreeNode();
+                    testPlanRootNode.setUserObject(new TestPlan());
+                    testPlanRootNode.add(cloneTreeNode(this.subtreeNode)); // clone to not affect selection tree
+
+                    ((ReplaceableController) item).resolveReplacementSubTree(testPlanRootNode);
+                    isNestedReplacebleResolved = ((ReplaceableController) item).getReplacementSubTree() != null;
                 }
                 JMeterTreeNode newNode = new JMeterTreeNode(item, model);
                 model.insertNodeInto(newNode, current, current.getChildCount());
