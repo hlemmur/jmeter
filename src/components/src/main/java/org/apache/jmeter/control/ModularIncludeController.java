@@ -54,7 +54,6 @@ public class ModularIncludeController extends GenericController implements Repla
 
     private transient JMeterTreeNode selectedNode = null;
     private TreeNode[] selectedPath = null;
-    private boolean isNestedReplacebleResolved = false;
 
     private static  final String PREFIX =
             JMeterUtils.getPropDefault(
@@ -180,14 +179,13 @@ public class ModularIncludeController extends GenericController implements Repla
         if (subtree==null) {
             this.subtree = this.loadIncludedElements();
         }
-            if (subtree != null && !isNestedReplacebleResolved) {
-                try {
-                    this.subtreeNode = buildJMeterTreeNodeFromHashTree(this.subtree);
-                } catch (IllegalUserActionException e) {
-                    e.printStackTrace();
-                }
+        if (subtree != null && selectedNode==null) { // indicates nested subtree and selected is not resolved
+            try {
+                this.subtreeNode = buildJMeterTreeNodeFromHashTree(this.subtree);
+            } catch (IllegalUserActionException e) {
+                e.printStackTrace();
             }
-        //}
+        }
 
         if (selectedNode == null) {
             List<?> nodePathList = getNodePath();
@@ -251,7 +249,7 @@ public class ModularIncludeController extends GenericController implements Repla
 
     /**
      * The way ReplaceableController works is clone is called first,
-     * followed by replace(HashTree) and finally getReplacement().
+     * followed by replace(HashTree) and finally getReplacementSubTree().
      */
     /**
      * {@inheritDoc}
@@ -306,8 +304,11 @@ public class ModularIncludeController extends GenericController implements Repla
                     testPlanRootNode.setUserObject(new TestPlan());
                     testPlanRootNode.add(cloneTreeNode(this.subtreeNode)); // clone to not affect selection tree
 
-                    ((ReplaceableController) item).resolveReplacementSubTree(testPlanRootNode);
-                    isNestedReplacebleResolved = ((ReplaceableController) item).getReplacementSubTree() != null;
+                    if (((ReplaceableController) item).getReplacementSubTree().size()==0) {
+                        ((ReplaceableController) item).resolveReplacementSubTree(testPlanRootNode);
+                    }
+                    log.info("current replaceble: " + item.getName() + ": " + ((ReplaceableController) item).getReplacementSubTree());
+
                 }
                 JMeterTreeNode newNode = new JMeterTreeNode(item, model);
                 model.insertNodeInto(newNode, current, current.getChildCount());
