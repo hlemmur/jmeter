@@ -20,9 +20,7 @@ package org.apache.jmeter.control;
 import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Enumeration;
-import java.util.List;
+import java.util.*;
 
 import javax.swing.tree.TreeNode;
 
@@ -45,7 +43,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 public class ModularIncludeController extends GenericController implements ReplaceableController {
-    private static int count=0;
+    private static int countBuild =0;
+    private static int countCached =0;
     private static final Logger log = LoggerFactory.getLogger(ModularIncludeController.class);
    // private static final long serialVersionUID = 240L; //TODO what's that for?
 
@@ -181,17 +180,27 @@ public class ModularIncludeController extends GenericController implements Repla
         }
         if (subtree != null && selectedNode==null) { // indicates nested subtree and selected is not resolved
             try {
-                this.subtreeNode = buildJMeterTreeNodeFromHashTree(this.subtree);
+                if (isGuiMode()) {
+                    //traverse through the test plan and look up for the external tree was already resolved - optimizes memory usage in GUI mode
+                    JMeterTreeNode existingResolvedNode = externalNodeLookup((JMeterTreeNode) GuiPackage.getInstance().getTreeModel().getRoot());
+                    this.subtreeNode = existingResolvedNode != null ? existingResolvedNode : buildJMeterTreeNodeFromHashTree(this.subtree);
+                    if (existingResolvedNode != null) {
+                        log.info("get external tree node from cache: " + ++countCached);
+                    }
+                }
+                else {
+                    this.subtreeNode = buildJMeterTreeNodeFromHashTree(this.subtree);
+                }
             } catch (IllegalUserActionException e) {
                 e.printStackTrace();
             }
         }
-
         if (selectedNode == null) {
             List<?> nodePathList = getNodePath();
             if (nodePathList != null && !nodePathList.isEmpty()) {
                 traverse(context, nodePathList, 1);
             }
+            this.setProperty("isEventuallyResolved", selectedNode != null);
 
             if(isGuiMode()) {
                 if(isRunningVersion() && selectedNode == null) {
@@ -201,6 +210,7 @@ public class ModularIncludeController extends GenericController implements Repla
                 }
             }
         }
+
 /*
         for (Object o : new ArrayList<>(tree.list())) {
             TestElement item = (TestElement) o;
@@ -214,6 +224,25 @@ public class ModularIncludeController extends GenericController implements Repla
             }
         }
  */
+    }
+
+    private JMeterTreeNode externalNodeLookup(JMeterTreeNode node){
+        if (node.getUserObject() instanceof ModularIncludeController) {
+            TestElement te = node.getTestElement();
+            if (((ModularIncludeController) te).getIncludePath().equals(this.getIncludePath())
+                    && te.getPropertyAsBoolean("isEventuallyResolved")){
+                return ((ModularIncludeController) te).subtreeNode;
+            }
+        }
+        Enumeration<?> enumNode = node.children();
+        while (enumNode.hasMoreElements()) {
+            JMeterTreeNode child = (JMeterTreeNode)enumNode.nextElement();
+            JMeterTreeNode result = externalNodeLookup(child);
+            if (result != null) {
+                return result;
+            }
+        }
+        return null;
     }
 
     /**
@@ -273,7 +302,7 @@ public class ModularIncludeController extends GenericController implements Repla
     }
 
     public JMeterTreeNode buildJMeterTreeNodeFromHashTree(HashTree tree) throws IllegalUserActionException {
-        log.info("buildJMeterTreeNodeFromHashTree: " + ++count);
+        log.info("buildJMeterTreeNodeFromHashTree: " + ++countBuild);
         JMeterTreeNode rootNode = new JMeterTreeNode();
         rootNode.setUserObject(new TestPlan());
         JMeterTreeModel model = new JMeterTreeModel();
@@ -307,7 +336,7 @@ public class ModularIncludeController extends GenericController implements Repla
                     if (((ReplaceableController) item).getReplacementSubTree().size()==0) {
                         ((ReplaceableController) item).resolveReplacementSubTree(testPlanRootNode);
                     }
-                    log.info("current replaceble: " + item.getName() + ": " + ((ReplaceableController) item).getReplacementSubTree());
+                    //log.info("current replaceble: " + item.getName() + ": " + ((ReplaceableController) item).getReplacementSubTree());
 
                 }
                 JMeterTreeNode newNode = new JMeterTreeNode(item, model);
