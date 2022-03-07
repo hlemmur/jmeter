@@ -180,36 +180,45 @@ public class ModularIncludeController extends GenericController implements Repla
         }
         if (subtree != null && selectedNode==null) { // indicates nested subtree and selected is not resolved
             try {
-                if (isGuiMode()) {
+                if (isGuiMode()) { //!JMeter.isNonGUI()
                     //traverse through the test plan and look up for the external tree was already resolved - optimizes memory usage in GUI mode
                     JMeterTreeNode existingResolvedNode = externalNodeLookup((JMeterTreeNode) GuiPackage.getInstance().getTreeModel().getRoot());
                     this.subtreeNode = existingResolvedNode != null ? existingResolvedNode : buildJMeterTreeNodeFromHashTree(this.subtree);
                     if (existingResolvedNode != null) {
-                        log.info("get external tree node from cache: " + ++countCached);
+                        log.debug("get external tree node from cache: " + ++countCached);
                     }
-                }
-                else {
+                } else {
                     this.subtreeNode = buildJMeterTreeNodeFromHashTree(this.subtree);
                 }
             } catch (IllegalUserActionException e) {
                 e.printStackTrace();
             }
         }
+
         if (selectedNode == null) {
             List<?> nodePathList = getNodePath();
             if (nodePathList != null && !nodePathList.isEmpty()) {
                 traverse(context, nodePathList, 1);
             }
             this.setProperty("isEventuallyResolved", selectedNode != null);
-
-            if(isGuiMode()) {
-                if(isRunningVersion() && selectedNode == null) {
+/*
+            if(hasReplacementOccured() && selectedNode == null) {
                 throw new JMeterStopTestException("ModularIncludeController:"
                         + getName()
                         + " has no selected Controller (did you rename some element in the path to target controller?), test was shutdown as a consequence");
+            }
+ */
+            // TODO temp solution, allows to skip the check of non-resolved replacementSubTree(selectedNode) in non-GUI mode
+            // but the actually missing replacement case is not covered in non-GUI mode
+            if(isGuiMode()) {
+                if(isRunningVersion() && selectedNode == null) {
+                    throw new JMeterStopTestException("ModularIncludeController:"
+                            + getName()
+                            + " has no selected Controller (did you rename some element in the path to target controller?), test was shutdown as a consequence");
                 }
             }
         }
+
 
 /*
         for (Object o : new ArrayList<>(tree.list())) {
@@ -251,7 +260,7 @@ public class ModularIncludeController extends GenericController implements Repla
      * @return true if replacement occurred at the time method is called
      */
     private boolean hasReplacementOccured() {
-        log.info("isRunningVersion: " + isRunningVersion());
+        log.debug("isRunningVersion: " + isRunningVersion());
         return GuiPackage.getInstance() == null || isRunningVersion();
     }
 
@@ -302,7 +311,7 @@ public class ModularIncludeController extends GenericController implements Repla
     }
 
     public JMeterTreeNode buildJMeterTreeNodeFromHashTree(HashTree tree) throws IllegalUserActionException {
-        log.info("buildJMeterTreeNodeFromHashTree: " + ++countBuild);
+        log.debug("buildJMeterTreeNodeFromHashTree: " + ++countBuild);
         JMeterTreeNode rootNode = new JMeterTreeNode();
         rootNode.setUserObject(new TestPlan());
         JMeterTreeModel model = new JMeterTreeModel();
@@ -336,7 +345,7 @@ public class ModularIncludeController extends GenericController implements Repla
                     if (((ReplaceableController) item).getReplacementSubTree().size()==0) {
                         ((ReplaceableController) item).resolveReplacementSubTree(testPlanRootNode);
                     }
-                    //log.info("current replaceble: " + item.getName() + ": " + ((ReplaceableController) item).getReplacementSubTree());
+                    //log.debug("current replaceble: " + item.getName() + ": " + ((ReplaceableController) item).getReplacementSubTree());
 
                 }
                 JMeterTreeNode newNode = new JMeterTreeNode(item, model);
@@ -389,12 +398,12 @@ public class ModularIncludeController extends GenericController implements Repla
         if (includePath != null && includePath.length() > 0) {
             String fileName=PREFIX+includePath;
             try {
-                File file = new File(fileName.trim());
+                File file = new File(FileServer.getFileServer().getBaseDir(), includePath);
                 final String absolutePath = file.getAbsolutePath();
                 log.info("loadIncludedElements -- try to load included module: {}", absolutePath);
                 if(!file.exists() && !file.isAbsolute()){
+                    file = new File(fileName.trim());
                     log.info("loadIncludedElements -failed for: {}", absolutePath);
-                    file = new File(FileServer.getFileServer().getBaseDir(), includePath);
                     if (log.isInfoEnabled()) {
                         log.info("loadIncludedElements -Attempting to read it from: {}", file.getAbsolutePath());
                     }

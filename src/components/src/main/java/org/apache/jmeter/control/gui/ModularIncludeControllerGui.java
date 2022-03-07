@@ -20,6 +20,7 @@ package org.apache.jmeter.control.gui;
 import java.awt.Component;
 import java.awt.Dimension;
 import java.awt.FlowLayout;
+import java.io.File;
 import java.util.Collection;
 import java.util.Iterator;
 
@@ -50,6 +51,7 @@ import org.apache.jmeter.gui.tree.JMeterTreeNode;
 import org.apache.jmeter.gui.util.FilePanel;
 import org.apache.jmeter.gui.util.MenuFactory;
 import org.apache.jmeter.gui.util.MenuInfo;
+import org.apache.jmeter.services.FileServer;
 import org.apache.jmeter.testelement.TestElement;
 import org.apache.jmeter.testelement.TestPlan;
 import org.apache.jmeter.threads.AbstractThreadGroup;
@@ -249,8 +251,22 @@ public class ModularIncludeControllerGui extends AbstractControllerGui /* implem
     public void modifyTestElement(TestElement element) {
         configureTestElement(element);
         ModularIncludeController controller = (ModularIncludeController)element;
-        controller.setIncludePath(this.includePanel.getFilename());
 
+        String externalFilename = this.includePanel.getFilename();
+
+        // save the relative external filename instead of absolute one
+        // current limitation - included files must be under the same dir as the parent test plan
+        // TODO what if there is a need to import files from another dir? maybe to use approach of jmeter property lookup lib dir
+        // or leave the absolute path but parametrize with fil path variable
+        File file = new File(externalFilename);
+        String currentBaseDir = FileServer.getFileServer().getBaseDir();
+        if (file.isAbsolute()) {
+            String relativeIncludePath =(new File(currentBaseDir)).toPath().relativize(file.toPath()).toString();
+            controller.setIncludePath(relativeIncludePath);
+        }
+        else {
+            controller.setIncludePath(externalFilename);
+        }
         JMeterTreeNode tn = null;
         DefaultMutableTreeNode lastSelected =
                 (DefaultMutableTreeNode) this.moduleToRunTreeNodes.getLastSelectedPathComponent();
@@ -426,13 +442,14 @@ public class ModularIncludeControllerGui extends AbstractControllerGui /* implem
             for (int i = 0; i < node.getChildCount(); i++) {
                 JMeterTreeNode cur = (JMeterTreeNode) node.getChildAt(i);
                 TestElement te = cur.getTestElement();
+                // TODO maybe it's better to include samplers (non-selectable) just to better understand the external components structure?
                 if ( te instanceof TestFragmentController
                         || te instanceof AbstractThreadGroup
                         || (te instanceof Controller
                         && !(te instanceof ReplaceableController)
                         && level > 0)) {
                     DefaultMutableTreeNode newNode = new DefaultMutableTreeNode(cur);
-                     parent.add(newNode);
+                    parent.add(newNode);
                     buildTreeNodeModel(cur, level + 1, newNode);
                     final boolean isController = te instanceof Controller
                             && !(te instanceof ReplaceableController
