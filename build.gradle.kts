@@ -207,7 +207,7 @@ fun SonarQubeProperties.add(name: String, valueProvider: () -> String) {
 }
 
 if (jacocoEnabled) {
-    val mergedCoverage = jacocoReport.get().reports.xml.destination.toString()
+    val mergedCoverage = jacocoReport.get().reports.xml.outputLocation.toString()
 
     // For every module we pass merged coverage report
     // That enables to see ":src:core" lines covered even in case they are covered from
@@ -493,8 +493,8 @@ allprojects {
 
         tasks.withType<JacocoReport>().configureEach {
             reports {
-                html.isEnabled = reportsForHumans()
-                xml.isEnabled = !reportsForHumans()
+                html.required.set(reportsForHumans())
+                xml.required.set(!reportsForHumans())
             }
         }
         // Add each project to combined report
@@ -599,6 +599,11 @@ allprojects {
                 fun passProperty(name: String, default: String? = null) {
                     val value = System.getProperty(name) ?: default
                     value?.let { systemProperty(name, it) }
+                }
+                System.getProperties().filter {
+                    it.key.toString().startsWith("jmeter.properties.")
+                }.forEach {
+                    systemProperty(it.key.toString().substring("jmeter.properties.".length), it.value)
                 }
                 passProperty("java.awt.headless")
                 passProperty("skip.test_TestDNSCacheManager.testWithCustomResolverAnd1Server")

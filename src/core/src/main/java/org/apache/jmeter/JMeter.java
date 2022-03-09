@@ -54,6 +54,7 @@ import javax.script.ScriptEngineFactory;
 import javax.script.ScriptEngineManager;
 import javax.script.ScriptException;
 import javax.swing.JTree;
+import javax.swing.SwingUtilities;
 import javax.swing.tree.TreePath;
 
 import org.apache.commons.cli.avalon.CLArgsParser;
@@ -105,6 +106,7 @@ import org.apache.jorphan.collections.HashTree;
 import org.apache.jorphan.collections.SearchByClass;
 import org.apache.jorphan.gui.ComponentUtil;
 import org.apache.jorphan.gui.JMeterUIDefaults;
+import org.apache.jorphan.gui.ui.KerningOptimizer;
 import org.apache.jorphan.reflect.ClassTools;
 import org.apache.jorphan.util.HeapDumper;
 import org.apache.jorphan.util.JMeterException;
@@ -374,6 +376,9 @@ public class JMeter implements JMeterPlugin {
         System.out.println("Check : https://jmeter.apache.org/usermanual/best-practices.html");//NOSONAR
         System.out.println("================================================================================");//NOSONAR
 
+        KerningOptimizer.INSTANCE.setMaxTextLengthWithKerning(
+                JMeterUtils.getPropDefault("text.kerning.max_document_size", 10000)
+        );
         JMeterUIDefaults.INSTANCE.install();
 
         String jMeterLaf = LookAndFeelCommand.getPreferredLafCommand();
@@ -559,7 +564,8 @@ public class JMeter implements JMeterPlugin {
                     ReportGenerator generator = new ReportGenerator(reportFile, null);
                     generator.generate();
                 } else if (parser.getArgumentById(NONGUI_OPT) == null) { // not non-GUI => GUI
-                    startGui(testFile);
+                    String initialTestFile = testFile;
+                    SwingUtilities.invokeAndWait(() -> startGui(initialTestFile));
                     startOptionalServers();
                 } else { // NON-GUI must be true
                     extractAndSetReportOutputFolder(parser, deleteResultFile);

@@ -51,6 +51,9 @@ public class JSONPathAssertion extends AbstractTestElement implements Serializab
     public static final String INVERT = "INVERT";
     public static final String ISREGEX = "ISREGEX";
 
+    private static final boolean USE_JAVA_REGEX = !JMeterUtils.getPropDefault(
+            "jmeter.regex.engine", "oro").equalsIgnoreCase("oro");
+
     private static ThreadLocal<DecimalFormat> decimalFormatter =
             ThreadLocal.withInitial(JSONPathAssertion::createDecimalFormat);
 
@@ -112,6 +115,13 @@ public class JSONPathAssertion extends AbstractTestElement implements Serializab
         Object value = JsonPath.read(jsonString, getJsonPath());
 
         if (!isJsonValidationBool()) {
+            if (value instanceof JSONArray) {
+                JSONArray arrayValue = (JSONArray) value;
+                if (arrayValue.isEmpty() && !JsonPath.isPathDefinite(getJsonPath())) {
+                    throw new IllegalStateException("JSONPath is indefinite and the extracted Value is an empty Array." +
+                            " Please use an assertion value, to be sure to get a correct result. " + getExpectedValue());
+                }
+            }
             return;
         }
 
@@ -157,8 +167,12 @@ public class JSONPathAssertion extends AbstractTestElement implements Serializab
     private boolean isEquals(Object subj) {
         if (isUseRegex()) {
             String str = objectToString(subj);
-            Pattern pattern = JMeterUtils.getPatternCache().getPattern(getExpectedValue());
-            return JMeterUtils.getMatcher().matches(str, pattern);
+            if (USE_JAVA_REGEX) {
+                return JMeterUtils.compilePattern(getExpectedValue()).matcher(str).matches();
+            } else {
+                Pattern pattern = JMeterUtils.getPatternCache().getPattern(getExpectedValue());
+                return JMeterUtils.getMatcher().matches(str, pattern);
+            }
         } else {
             Object expected = JSONValue.parse(getExpectedValue());
             return Objects.equals(expected, subj);
