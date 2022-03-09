@@ -20,7 +20,9 @@ package org.apache.jmeter.control;
 import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.IOException;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Enumeration;
+import java.util.List;
 
 import javax.swing.tree.TreeNode;
 
@@ -214,7 +216,8 @@ public class ModularIncludeController extends GenericController implements Repla
                 if(isRunningVersion() && selectedNode == null) {
                     throw new JMeterStopTestException("ModularIncludeController:"
                             + getName()
-                            + " has no selected Controller (did you rename some element in the path to target controller?), test was shutdown as a consequence");
+                            + " has no selected Controller (did you rename some element in the path to target controller?), "
+                            + "test was shutdown as a consequence");
                 }
             }
         }
@@ -345,7 +348,7 @@ public class ModularIncludeController extends GenericController implements Repla
                     if (((ReplaceableController) item).getReplacementSubTree().size()==0) {
                         ((ReplaceableController) item).resolveReplacementSubTree(testPlanRootNode);
                     }
-                    //log.debug("current replaceble: " + item.getName() + ": " + ((ReplaceableController) item).getReplacementSubTree());
+                    //log.info("current replaceble: " + item.getName() + ": " + ((ReplaceableController) item).getReplacementSubTree());
 
                 }
                 JMeterTreeNode newNode = new JMeterTreeNode(item, model);

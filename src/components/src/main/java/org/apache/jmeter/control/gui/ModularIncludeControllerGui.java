@@ -20,18 +20,22 @@ package org.apache.jmeter.control.gui;
 import java.awt.Component;
 import java.awt.Dimension;
 import java.awt.FlowLayout;
+import java.awt.event.ActionEvent;
+import java.awt.event.ActionListener;
 import java.io.File;
 import java.util.Collection;
 import java.util.Iterator;
 
+import javax.swing.JTree;
+import javax.swing.JLabel;
+import javax.swing.JButton;
+import javax.swing.JPopupMenu;
+import javax.swing.JPanel;
+import javax.swing.ImageIcon;
+import javax.swing.SwingConstants;
 import javax.swing.Box;
 import javax.swing.BoxLayout;
-import javax.swing.ImageIcon;
-import javax.swing.JLabel;
-import javax.swing.JPanel;
-import javax.swing.JPopupMenu;
-import javax.swing.JTree;
-import javax.swing.SwingConstants;
+
 import javax.swing.tree.DefaultMutableTreeNode;
 import javax.swing.tree.DefaultTreeCellRenderer;
 import javax.swing.tree.DefaultTreeModel;
@@ -62,7 +66,7 @@ import org.apache.jorphan.gui.layout.VerticalLayout;
 
 @GUIMenuSortOrder(MenuInfo.SORT_ORDER_DEFAULT+2)
 @TestElementMetadata(labelResource = "modular_include_controller_title")
-public class ModularIncludeControllerGui extends AbstractControllerGui /* implements ActionListener*/  { // NOSONAR Ignore parent warning
+public class ModularIncludeControllerGui extends AbstractControllerGui implements ActionListener { // NOSONAR Ignore parent warning
     //private static final long serialVersionUID = -4195441608252523573L; // TODO what's that for?
 
     private final FilePanel includePanel =
@@ -100,6 +104,16 @@ public class ModularIncludeControllerGui extends AbstractControllerGui /* implem
      * indicates if it's time to reset test element state (on file change for example)
      */
     private boolean doReset = false;
+
+    /**
+     * button to reload the tree in case it was not refreshed when for ex. included file has changed
+     */
+    private JButton reloadTreeButton;
+
+    /**
+     * Opens included external *.jmx file in new window
+     */
+    private JButton openIncludedTestPlanButton;
 
     /**
      * Initializes the gui panel for the ModularIncludeController instance.
@@ -169,6 +183,7 @@ public class ModularIncludeControllerGui extends AbstractControllerGui /* implem
         moduleToRunTreeNodes.addTreeSelectionListener(
                 evt -> {
                     warningLabel.setVisible(false);
+                    //reloadTreeButton.setEnabled(true);
                 });
         includePanel.addChangeListener(
                 evt -> {
@@ -204,6 +219,8 @@ public class ModularIncludeControllerGui extends AbstractControllerGui /* implem
         if (this.includePanel.getFilename().equals("") || this.includePanel.getFilename()==null){
             moduleToRunTreeNodes.setVisible(false);
             warningLabel.setVisible(false);
+            reloadTreeButton.setEnabled(false);
+            openIncludedTestPlanButton.setEnabled(false);
         }
         else if (selected == null && controller.getNodePath() != null) {
             warningLabel.setText(JMeterUtils.getResString("modular_include_controller_warning") // $NON-NLS-1$
@@ -213,6 +230,8 @@ public class ModularIncludeControllerGui extends AbstractControllerGui /* implem
         else {
             warningLabel.setVisible(false);
             moduleToRunTreeNodes.setVisible(true);
+            reloadTreeButton.setEnabled(true);
+            openIncludedTestPlanButton.setEnabled(true);
         }
         reinitialize(controller);
     }
@@ -252,21 +271,12 @@ public class ModularIncludeControllerGui extends AbstractControllerGui /* implem
         configureTestElement(element);
         ModularIncludeController controller = (ModularIncludeController)element;
 
-        String externalFilename = this.includePanel.getFilename();
-
         // save the relative external filename instead of absolute one
         // current limitation - included files must be under the same dir as the parent test plan
         // TODO what if there is a need to import files from another dir? maybe to use approach of jmeter property lookup lib dir
-        // or leave the absolute path but parametrize with fil path variable
-        File file = new File(externalFilename);
-        String currentBaseDir = FileServer.getFileServer().getBaseDir();
-        if (file.isAbsolute()) {
-            String relativeIncludePath =(new File(currentBaseDir)).toPath().relativize(file.toPath()).toString();
-            controller.setIncludePath(relativeIncludePath);
-        }
-        else {
-            controller.setIncludePath(externalFilename);
-        }
+        // or leave the absolute path but parametrize with file path variable
+        controller.setIncludePath(getRelativeFilePath(this.includePanel.getFilename()));
+
         JMeterTreeNode tn = null;
         DefaultMutableTreeNode lastSelected =
                 (DefaultMutableTreeNode) this.moduleToRunTreeNodes.getLastSelectedPathComponent();
@@ -303,6 +313,7 @@ public class ModularIncludeControllerGui extends AbstractControllerGui /* implem
         if(moduleToRunTreeNodes != null) {
             moduleToRunTreeNodes.clearSelection();
             moduleToRunTreeNodes.setVisible(false);
+            //reloadTreeButton.setEnabled(false);
         }
         includePanel.clearGui();
     }
@@ -325,8 +336,17 @@ public class ModularIncludeControllerGui extends AbstractControllerGui /* implem
 
         JPanel modulesPanel = new JPanel();
 
-        // TODO add tree refresh button?
         // TODO button to open imported jmx file in new jmeter gui instance?
+
+        // TODO add tree refresh button?
+        reloadTreeButton = new JButton(JMeterUtils.getResString("modular_include_controller_refresh_tree")); //$NON-NLS-1$
+        reloadTreeButton.addActionListener(this);
+        modulesPanel.add(reloadTreeButton);
+
+        openIncludedTestPlanButton = new JButton(JMeterUtils.getResString("modular_include_controller_open_included_testplan")); //$NON-NLS-1$
+        openIncludedTestPlanButton.addActionListener(this);
+        modulesPanel.add(openIncludedTestPlanButton);
+
         modulesPanel.setLayout(new BoxLayout(modulesPanel, BoxLayout.Y_AXIS));
         modulesPanel.add(Box.createRigidArea(new Dimension(0,5)));
 
@@ -396,6 +416,46 @@ public class ModularIncludeControllerGui extends AbstractControllerGui /* implem
             moduleToRunTreeNodes.scrollPathToVisible(treePath);
         }
     }
+
+    /**
+     * Implementation of Refresh Tree button: <br>
+     * reloads the external tree visual representation
+     */
+    @Override
+    public void actionPerformed(ActionEvent e) {
+        if (e.getSource() == reloadTreeButton) {
+            selected = null;
+            moduleToRunTreeNodes.clearSelection();
+            doReset = true; // affects this.configure() called by updateCurrentGui()
+            GuiPackage.getInstance().updateCurrentGui();
+        }
+        if (e.getSource() == openIncludedTestPlanButton) {
+            org.apache.jmeter.NewDriver.main(new String[] {"-t", getAbsoluteFilePath(this.includePanel.getFilename())});
+        }
+
+    }
+
+    private String getAbsoluteFilePath(String filename){
+        File file = new File(filename);
+        String currentBaseDir = FileServer.getFileServer().getBaseDir();
+        if (!file.isAbsolute()) {
+            return (new File(currentBaseDir)).toPath().resolve(file.toPath()).toString();
+        }
+        else {
+            return filename;
+        }
+    };
+
+    private String getRelativeFilePath(String filename){
+        File file = new File(filename);
+        String currentBaseDir = FileServer.getFileServer().getBaseDir();
+        if (file.isAbsolute()) {
+            return (new File(currentBaseDir)).toPath().relativize(file.toPath()).toString();
+        }
+        else {
+            return filename;
+        }
+    };
 
     /**
      * Reinitializes the visual representation of JMeter Tree keeping only the Controllers, Test Fragment, Thread Groups, Test Plan
