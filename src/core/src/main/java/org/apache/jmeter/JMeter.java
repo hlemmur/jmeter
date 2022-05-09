@@ -24,6 +24,7 @@ import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.Reader;
+import java.lang.reflect.InvocationTargetException;
 import java.net.Authenticator;
 import java.net.DatagramPacket;
 import java.net.DatagramSocket;
@@ -32,10 +33,12 @@ import java.net.MalformedURLException;
 import java.net.SocketException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
-import java.text.SimpleDateFormat;
+import java.time.Instant;
+import java.time.ZoneId;
+import java.time.format.DateTimeFormatter;
+import java.time.format.FormatStyle;
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.Date;
 import java.util.Enumeration;
 import java.util.Iterator;
 import java.util.List;
@@ -375,7 +378,30 @@ public class JMeter implements JMeterPlugin {
         System.out.println("   Modify current env variable HEAP=\"-Xms1g -Xmx1g -XX:MaxMetaspaceSize=256m\" in the jmeter batch file");//NOSONAR
         System.out.println("Check : https://jmeter.apache.org/usermanual/best-practices.html");//NOSONAR
         System.out.println("================================================================================");//NOSONAR
+        invokeAndWait("LaF", JMeter::setupLaF);
 
+        // SplashScreen is created after LaF activation, otherwise it would cause splash flicker.
+        // bug 66044 split showing splash screen from the other parts to have content in the window
+        SplashScreen splash = new SplashScreen();
+        splash.showScreen();
+        splash.setProgress(10);
+        invokeAndWait("HiDPI settings", JMeterUtils::applyHiDPIOnFonts);
+        splash.setProgress(20);
+        invokeAndWait("main part", () -> startGuiPartTwo(testFile, splash));
+    }
+
+    private static void invokeAndWait(String part, Runnable doRun) {
+        try {
+            log.debug("Setting up {}", part);
+            SwingUtilities.invokeAndWait(doRun);
+        } catch (InterruptedException e) {
+            log.warn("Interrupted while setting up {}", part, e);
+        } catch (InvocationTargetException e) {
+            log.warn("Problem while setting up {}", part, e);
+        }
+    }
+
+    private static void setupLaF() {
         KerningOptimizer.INSTANCE.setMaxTextLengthWithKerning(
                 JMeterUtils.getPropDefault("text.kerning.max_document_size", 10000)
         );
@@ -388,13 +414,9 @@ public class JMeter implements JMeterPlugin {
         } catch (IllegalArgumentException ex) {
             log.warn("Could not set LAF to: {}", jMeterLaf, ex);
         }
-        // SplashWindow is created after LaF activation. Otherwise it would cause splash flicker
-        SplashScreen splash = new SplashScreen();
-        splash.showScreen();
-        splash.setProgress(10);
-        log.debug("Apply HiDPI on fonts");
-        JMeterUtils.applyHiDPIOnFonts();
-        splash.setProgress(20);
+    }
+
+    private void startGuiPartTwo(String testFile, SplashScreen splash) {
         log.debug("Configure PluginManager");
         PluginManager.install(this, true);
         splash.setProgress(30);
@@ -456,7 +478,6 @@ public class JMeter implements JMeterPlugin {
      * Called reflectively by {@link NewDriver#main(String[])}
      * @param args The arguments for JMeter
      */
-    @SuppressWarnings("JdkObsolete")
     public void start(String[] args) {
         CLArgsParser parser = new CLArgsParser(args, options);
         String error = parser.getErrorString();
@@ -524,11 +545,10 @@ public class JMeter implements JMeterPlugin {
             }
 
             // Set some (hopefully!) useful properties
-            long now=System.currentTimeMillis();
-            JMeterUtils.setProperty("START.MS",Long.toString(now));// $NON-NLS-1$
-            Date today=new Date(now); // so it agrees with above
-            JMeterUtils.setProperty("START.YMD",new SimpleDateFormat("yyyyMMdd").format(today));// $NON-NLS-1$ $NON-NLS-2$
-            JMeterUtils.setProperty("START.HMS",new SimpleDateFormat("HHmmss").format(today));// $NON-NLS-1$ $NON-NLS-2$
+            Instant now = Instant.now();
+            JMeterUtils.setProperty("START.MS",Long.toString(now.toEpochMilli()));// $NON-NLS-1$
+            JMeterUtils.setProperty("START.YMD", getFormatter("yyyyMMdd").format(now));// $NON-NLS-1$ $NON-NLS-2$
+            JMeterUtils.setProperty("START.HMS", getFormatter("HHmmss").format(now));// $NON-NLS-1$ $NON-NLS-2$
 
             if (parser.getArgumentById(VERSION_OPT) != null) {
                 displayAsciiArt();
@@ -565,7 +585,7 @@ public class JMeter implements JMeterPlugin {
                     generator.generate();
                 } else if (parser.getArgumentById(NONGUI_OPT) == null) { // not non-GUI => GUI
                     String initialTestFile = testFile;
-                    SwingUtilities.invokeAndWait(() -> startGui(initialTestFile));
+                    startGui(initialTestFile);
                     startOptionalServers();
                 } else { // NON-GUI must be true
                     extractAndSetReportOutputFolder(parser, deleteResultFile);
@@ -597,6 +617,10 @@ public class JMeter implements JMeterPlugin {
             // FIXME Should we exit here ? If we are called by Maven or Jenkins
             System.exit(1);
         }
+    }
+
+    private static DateTimeFormatter getFormatter(String pattern) {
+        return DateTimeFormatter.ofPattern(pattern).withZone(ZoneId.systemDefault());
     }
 
     /**
@@ -1096,8 +1120,8 @@ public class JMeter implements JMeterPlugin {
                 clonedTree.add(clonedTree.getArray()[0], new ListenToTest(
                         org.apache.jmeter.JMeter.ListenToTest.RunMode.LOCAL, false, reportGenerator));
                 engine.configure(clonedTree);
-                long now=System.currentTimeMillis();
-                println("Starting standalone test @ "+new Date(now)+" ("+now+")");
+                Instant now = Instant.now();
+                println("Starting standalone test @ "+ formatLikeDate(now) + " (" + now.toEpochMilli() + ')');
                 engines.add(engine);
                 engine.runTest();
             } else {
@@ -1125,6 +1149,14 @@ public class JMeter implements JMeterPlugin {
             log.error("Error in NonGUIDriver", e);
             throw new ConfigurationException("Error in NonGUIDriver " + e.getMessage(), e);
         }
+    }
+
+    private static String formatLikeDate(Instant instant) {
+        return DateTimeFormatter
+                .ofLocalizedDateTime(FormatStyle.LONG)
+                .withLocale(Locale.ROOT)
+                .withZone(ZoneId.systemDefault())
+                .format(instant);
     }
 
     /**
@@ -1325,11 +1357,11 @@ public class JMeter implements JMeterPlugin {
 
         @SuppressWarnings("JdkObsolete")
         private void endTest(boolean isDistributed) {
-            long now = System.currentTimeMillis();
+            Instant now = Instant.now();
             if (isDistributed) {
-                println("Tidying up remote @ "+new Date(now)+" ("+now+")");
+                println("Tidying up remote @ " + formatLikeDate(now) + " (" + now.toEpochMilli() + ')');
             } else {
-                println("Tidying up ...    @ "+new Date(now)+" ("+now+")");
+                println("Tidying up ...    @ " + formatLikeDate(now) + " (" + now.toEpochMilli() + ')');
             }
 
             if (isDistributed) {
