@@ -44,11 +44,15 @@ import org.apache.jorphan.util.JMeterStopTestException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
+
 public class ModularIncludeController extends GenericController implements ReplaceableController {
     private static int countBuild =0;
     private static int countCached =0;
     private static final Logger log = LoggerFactory.getLogger(ModularIncludeController.class);
-   // private static final long serialVersionUID = 240L; //TODO what's that for?
+    // private static final long serialVersionUID = 240L; //TODO what's that for?
+    private static final Map<String, JMeterTreeNode> eventuallyResolvedExternalTreeNode = new ConcurrentHashMap<>();
 
     private static final String NODE_PATH = "ModularIncludeController.node_path";
     private static final String INCLUDE_PATH = "ModularIncludeController.includepath";
@@ -182,16 +186,11 @@ public class ModularIncludeController extends GenericController implements Repla
         }
         if (subtree != null && selectedNode==null) { // indicates nested subtree and selected is not resolved
             try {
-                if (isGuiMode()) { //!JMeter.isNonGUI()
-                    //traverse through the test plan and look up for the external tree was already resolved - optimizes memory usage in GUI mode
-                    JMeterTreeNode existingResolvedNode = externalNodeLookup((JMeterTreeNode) GuiPackage.getInstance().getTreeModel().getRoot());
+                    JMeterTreeNode existingResolvedNode = eventuallyResolvedExternalTreeNode.get(this.getIncludePath());
                     this.subtreeNode = existingResolvedNode != null ? existingResolvedNode : buildJMeterTreeNodeFromHashTree(this.subtree);
                     if (existingResolvedNode != null) {
                         log.debug("get external tree node from cache: " + ++countCached);
                     }
-                } else {
-                    this.subtreeNode = buildJMeterTreeNodeFromHashTree(this.subtree);
-                }
             } catch (IllegalUserActionException e) {
                 e.printStackTrace();
             }
@@ -202,7 +201,9 @@ public class ModularIncludeController extends GenericController implements Repla
             if (nodePathList != null && !nodePathList.isEmpty()) {
                 traverse(context, nodePathList, 1);
             }
-            this.setProperty("isEventuallyResolved", selectedNode != null);
+            if (selectedNode != null){
+                eventuallyResolvedExternalTreeNode.put(this.getIncludePath(), this.subtreeNode);
+            }
 /*
             if(hasReplacementOccured() && selectedNode == null) {
                 throw new JMeterStopTestException("ModularIncludeController:"
@@ -221,40 +222,6 @@ public class ModularIncludeController extends GenericController implements Repla
                 }
             }
         }
-
-
-/*
-        for (Object o : new ArrayList<>(tree.list())) {
-            TestElement item = (TestElement) o;
-            if (item instanceof ReplaceableController) {
-                if (item instanceof ModularIncludeController) {
-                    HashTree replacementTree = ((ModularIncludeController) item).loadIncludedElements();
-                    ReplaceableController rc = (ReplaceableController) item.clone();
-                    tree.replaceKey(item, rc);
-                    tree.set(rc, replacementTree);
-                }
-            }
-        }
- */
-    }
-
-    private JMeterTreeNode externalNodeLookup(JMeterTreeNode node){
-        if (node.getUserObject() instanceof ModularIncludeController) {
-            TestElement te = node.getTestElement();
-            if (((ModularIncludeController) te).getIncludePath().equals(this.getIncludePath())
-                    && te.getPropertyAsBoolean("isEventuallyResolved")){
-                return ((ModularIncludeController) te).subtreeNode;
-            }
-        }
-        Enumeration<?> enumNode = node.children();
-        while (enumNode.hasMoreElements()) {
-            JMeterTreeNode child = (JMeterTreeNode)enumNode.nextElement();
-            JMeterTreeNode result = externalNodeLookup(child);
-            if (result != null) {
-                return result;
-            }
-        }
-        return null;
     }
 
     /**
@@ -348,7 +315,7 @@ public class ModularIncludeController extends GenericController implements Repla
                     if (((ReplaceableController) item).getReplacementSubTree().size()==0) {
                         ((ReplaceableController) item).resolveReplacementSubTree(testPlanRootNode);
                     }
-                    //log.info("current replaceble: " + item.getName() + ": " + ((ReplaceableController) item).getReplacementSubTree());
+                    log.debug("current replaceble: " + item.getName() + ": " + ((ReplaceableController) item).getReplacementSubTree());
 
                 }
                 JMeterTreeNode newNode = new JMeterTreeNode(item, model);
@@ -483,6 +450,4 @@ public class ModularIncludeController extends GenericController implements Repla
             }
         }
     }
-
-
 }

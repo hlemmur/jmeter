@@ -59,7 +59,6 @@ public class ImportControllerGui extends AbstractControllerGui implements Action
 
     private static final TreeNode[] EMPTY_TREE_NODES = new TreeNode[0];
 
-    private JMeterTreeNode selected = null;
 
     /**
      * Model of a Module to run tree. It is a copy of a test plan tree.
@@ -119,42 +118,9 @@ public class ImportControllerGui extends AbstractControllerGui implements Action
                 return tn != null && isTestElementAllowed(tn.getTestElement());
             }
 
-            @Override
-            public void setSelectionPath(TreePath path) {
-                DefaultMutableTreeNode lastSelected = (DefaultMutableTreeNode) path.getLastPathComponent();
-
-                if (isSelectedPathAllowed(lastSelected)) {
-                    super.setSelectionPath(path);
-                }
-            }
-
-            @Override
-            public void setSelectionPaths(TreePath[] pPaths) {
-                DefaultMutableTreeNode lastSelected = (DefaultMutableTreeNode) pPaths[pPaths.length-1].getLastPathComponent();
-                if (isSelectedPathAllowed(lastSelected)) {
-                    super.setSelectionPaths(pPaths);
-                }
-            }
-
-            @Override
-            public void addSelectionPath(TreePath path) {
-                DefaultMutableTreeNode lastSelected = (DefaultMutableTreeNode) path.getLastPathComponent();
-                if (isSelectedPathAllowed(lastSelected)) {
-                    super.addSelectionPath(path);
-                }
-            }
-
-            @Override
-            public void addSelectionPaths(TreePath[] paths) {
-                DefaultMutableTreeNode lastSelected = (DefaultMutableTreeNode) paths[paths.length-1].getLastPathComponent();
-                if (isSelectedPathAllowed(lastSelected)) {
-                    super.addSelectionPaths(paths);
-                }
-            }
         };
         tsm.setSelectionMode(TreeSelectionModel.SINGLE_TREE_SELECTION);
         importedTreeNodes.setSelectionModel(tsm);
-
 
         ImageIcon image = JMeterUtils.getImage("warning.png");
         warningLabel = new JLabel("", image, SwingConstants.LEFT); // $NON-NLS-1$
@@ -166,13 +132,11 @@ public class ImportControllerGui extends AbstractControllerGui implements Action
         importedTreeNodes.addTreeSelectionListener(
                 evt -> {
                     warningLabel.setVisible(false);
-                    //reloadTreeButton.setEnabled(true);
                 });
         includePanel.addChangeListener(
                 evt -> {
                     // reset the test element on external file selection and refresh gui correspondingly
                     // TODO skip on initial creation?
-                    selected = null;
                     importedTreeNodes.clearSelection();
                     doReset = true; // affects this.configure() called by updateCurrentGui()
                     GuiPackage.getInstance().updateCurrentGui();
@@ -198,17 +162,11 @@ public class ImportControllerGui extends AbstractControllerGui implements Action
             doReset =false;
         }
 
-        this.selected = controller.getSelectedNode();
         if (this.includePanel.getFilename().equals("") || this.includePanel.getFilename()==null){
             importedTreeNodes.setVisible(false);
             warningLabel.setVisible(false);
             reloadTreeButton.setEnabled(false);
             openIncludedTestPlanButton.setEnabled(false);
-        }
-        else if (selected == null && controller.getNodePath() != null) {
-            warningLabel.setText(JMeterUtils.getResString("import_controller_warning") // $NON-NLS-1$
-                    + renderPath(controller.getNodePath()));
-            warningLabel.setVisible(true);
         }
         else {
             warningLabel.setVisible(false);
@@ -219,33 +177,12 @@ public class ImportControllerGui extends AbstractControllerGui implements Action
         reinitialize(controller);
     }
 
-    private String renderPath(Collection<?> path) {
-        Iterator<?> iter = path.iterator();
-        StringBuilder buf = new StringBuilder();
-        boolean first = true;
-        while (iter.hasNext()) {
-            if (first) {
-                first = false;
-                iter.next();
-                continue;
-            }
-            buf.append(iter.next());
-            if (iter.hasNext()) {
-                buf.append(SEPARATOR); // $NON-NLS-1$
-            }
-        }
-        return buf.toString();
-    }
-
     /** {@inheritDoc}} */
     @Override
     public TestElement createTestElement() {
-        ImportController mc = new ImportController();
-        configureTestElement(mc);
-        if (selected != null) {
-            mc.setSelectedNode(selected);
-        }
-        return mc;
+        ImportController ic = new ImportController();
+        configureTestElement(ic);
+        return ic;
     }
 
     /** {@inheritDoc}} */
@@ -259,21 +196,6 @@ public class ImportControllerGui extends AbstractControllerGui implements Action
         // TODO what if there is a need to import files from another dir? maybe to use approach of jmeter property lookup lib dir
         // or leave the absolute path but parametrize with file path variable
         controller.setIncludePath(getRelativeFilePath(this.includePanel.getFilename()));
-
-        JMeterTreeNode tn = null;
-        DefaultMutableTreeNode lastSelected =
-                (DefaultMutableTreeNode) this.importedTreeNodes.getLastSelectedPathComponent();
-        // TODO check if last selected corresponds the current include file - or clear it
-        if (lastSelected != null && lastSelected.getUserObject() instanceof JMeterTreeNode) {
-            tn = (JMeterTreeNode) lastSelected.getUserObject();
-        }
-        if (tn != null) {
-            selected = tn;
-            // prevent from selecting thread group or test plan elements
-            if (isTestElementAllowed(selected.getTestElement())) {
-                controller.setSelectedNode(selected);
-            }
-        }
     }
 
     // check if a given test element can be selected as the target of a module controller
@@ -288,15 +210,12 @@ public class ImportControllerGui extends AbstractControllerGui implements Action
     @Override
     public void clearGui() {
         super.clearGui();
-        selected = null;
         hasAtLeastOneController = false;
         if(importedTreeModel != null) {
             ((DefaultMutableTreeNode) importedTreeModel.getRoot()).removeAllChildren();
         }
         if(importedTreeNodes != null) {
-            importedTreeNodes.clearSelection();
             importedTreeNodes.setVisible(false);
-            //reloadTreeButton.setEnabled(false);
         }
         includePanel.clearGui();
     }
@@ -333,7 +252,7 @@ public class ImportControllerGui extends AbstractControllerGui implements Action
         modulesPanel.setLayout(new BoxLayout(modulesPanel, BoxLayout.Y_AXIS));
         modulesPanel.add(Box.createRigidArea(new Dimension(0,5)));
 
-        JLabel nodesLabel = new JLabel(JMeterUtils.getResString("import_controller_module_to_run")); // $NON-NLS-1$
+        JLabel nodesLabel = new JLabel(JMeterUtils.getResString("import_controller_imported_tree")); // $NON-NLS-1$
         modulesPanel.add(nodesLabel);
         modulesPanel.add(warningLabel);
         add(modulesPanel);
@@ -345,82 +264,17 @@ public class ImportControllerGui extends AbstractControllerGui implements Action
     }
 
     /**
-     * Recursively traverse module to run tree in order to find JMeterTreeNode element given by testPlanPath
-     * in a DefaultMutableTreeNode tree
-     *
-     * @param level - current search level
-     * @param testPlanPath - path of a test plan tree element
-     * @param parent - module to run tree parent element
-     *
-     * @return path of a found element
-     */
-    private TreeNode[] findPathInTreeModel(
-            int level, TreeNode[] testPlanPath, DefaultMutableTreeNode parent)
-    {
-        if (level >= testPlanPath.length) {
-            return EMPTY_TREE_NODES;
-        }
-        int childCount = parent.getChildCount();
-        JMeterTreeNode searchedTreeNode =
-                (JMeterTreeNode) testPlanPath[level];
-
-        for (int i = 0; i < childCount; i++) {
-            DefaultMutableTreeNode child = (DefaultMutableTreeNode) parent.getChildAt(i);
-            JMeterTreeNode childUserObj = (JMeterTreeNode) child.getUserObject();
-
-            // TODO temporary solution! doesn't guarantee the path is correct - names are not unique
-            if (childUserObj.getName().equals(searchedTreeNode.getName())){
-            // TODO objects are not equal eventually even if they are identical - why?
-            //if (childUserObj.equals(searchedTreeNode)) {
-                if (level == (testPlanPath.length - 1)) {
-                    return child.getPath();
-                } else {
-                    return findPathInTreeModel(level + 1, testPlanPath, child);
-                }
-            }
-        }
-        return EMPTY_TREE_NODES;
-    }
-
-    /**
-     * Expand module to run tree to selected JMeterTreeNode and set selection path to it
-     * @param selected - referenced module to run
-     */
-    private void focusSelectedOnTree(JMeterTreeNode selected)
-    {
-        TreeNode[] path = selected.getPath();
-        DefaultMutableTreeNode root = (DefaultMutableTreeNode) importedTreeNodes.getModel().getRoot();
-        //treepath of test plan tree and module to run tree cannot be compared directly - moduleToRunTreeModel.getPathToRoot()
-        //custom method for finding an JMeterTreeNode element in DefaultMutableTreeNode have to be used
-        TreeNode[] dmtnPath = this.findPathInTreeModel(1, path, root);
-        if (dmtnPath.length > 0) {
-            TreePath treePath = new TreePath(dmtnPath);
-            importedTreeNodes.setSelectionPath(treePath);
-            importedTreeNodes.scrollPathToVisible(treePath);
-        }
-    }
-
-    /**
      * Implementation of Refresh Tree button: <br>
      * reloads the external tree visual representation
      */
     @Override
     public void actionPerformed(ActionEvent e) {
         if (e.getSource() == reloadTreeButton) {
-            selected = null;
             importedTreeNodes.clearSelection();
             doReset = true; // affects this.configure() called by updateCurrentGui()
             GuiPackage.getInstance().updateCurrentGui();
         }
         if (e.getSource() == openIncludedTestPlanButton) {
-            /*
-            ProcessBuilder pb = new ProcessBuilder("myshellScript.sh", "myArg1", "myArg2");
-            Map<String, String> env = pb.environment();
-            env.put("VAR1", "myValue");
-            env.remove("OTHERVAR");
-            env.put("VAR2", env.get("VAR1") + "suffix");
-            pb.directory(new File("myDir"));
-            Process p = pb.start();*/
             org.apache.jmeter.NewDriver.main(new String[] {"-t", getAbsoluteFilePath(this.includePanel.getFilename())});
         }
 
@@ -459,20 +313,30 @@ public class ImportControllerGui extends AbstractControllerGui implements Action
     private void reinitialize(ImportController controller) {
         ((DefaultMutableTreeNode) importedTreeModel.getRoot()).removeAllChildren();
 
+        GuiPackage gp = GuiPackage.getInstance();
+        JMeterTreeNode root;
+        if (gp != null) {
+            /*if (controller.getSubtreeNode()!=null) {
+                gp.getCurrentNode().add(controller.getSubtreeNode());
+            }*/
+            root = (JMeterTreeNode) GuiPackage.getInstance().getTreeModel().getRoot();
+            buildTreeNodeModel(root, 0, null);
+            importedTreeModel.nodeStructureChanged((TreeNode) importedTreeModel.getRoot());
+        }
+        /*
+
         ((DefaultMutableTreeNode) importedTreeModel.getRoot())
                 .setUserObject(controller.getSubtreeNode());
 
         buildTreeNodeModel(controller.getSubtreeNode(), 0, (DefaultMutableTreeNode) importedTreeModel.getRoot());
         importedTreeModel.nodeStructureChanged((TreeNode) importedTreeModel.getRoot());
 
-        if (selected != null) {
-            //expand Module to run tree to selected node and set selection path to it
-            this.focusSelectedOnTree(selected);
-        }
         if (!hasAtLeastOneController && importedTreeNodes.isVisible()) {
             warningLabel.setText(JMeterUtils.getResString("import_controller_warning_no_controller"));
             warningLabel.setVisible(true);
         }
+
+         */
     }
     /**
      * Recursively build module to run tree. <br/>

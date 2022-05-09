@@ -35,6 +35,7 @@ import org.apache.jorphan.util.JMeterStopTestException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import javax.swing.tree.MutableTreeNode;
 import javax.swing.tree.TreeNode;
 
 import java.io.File;
@@ -44,17 +45,14 @@ import java.util.ArrayList;
 import java.util.Enumeration;
 import java.util.List;
 
-public class ImportController extends GenericController implements ReplaceableController {
+public class ImportController extends GenericController {
     private static int countBuild =0;
     private static int countCached =0;
     private static final Logger log = LoggerFactory.getLogger(ImportController.class);
    // private static final long serialVersionUID = 240L; //TODO what's that for?
 
-    private static final String NODE_PATH = "ModularIncludeController.node_path";
-    private static final String INCLUDE_PATH = "ModularIncludeController.includepath";
-
-    private transient JMeterTreeNode selectedNode = null;
-    private TreeNode[] selectedPath = null;
+    private static final String NODE_PATH = "ImportController.node_path";
+    private static final String INCLUDE_PATH = "ImportController.includepath";
 
     private static  final String PREFIX =
             JMeterUtils.getPropDefault(
@@ -82,18 +80,11 @@ public class ImportController extends GenericController implements ReplaceableCo
             clone.subtree = (HashTree)this.subtree.clone();
             clone.subtreeNode = (JMeterTreeNode) this.getSubtreeNode().clone(); // TODO clone will not have children/parents
         }
-        if (selectedNode == null) {
-            this.restoreSelected();
-        }
-        // TODO Should we clone instead the selectedNode?
-        clone.selectedNode = selectedNode;
         return clone;
     }
 
     public void reset(){
-        this.selectedNode=null;
         this.subtreeNode=null;
-        this.selectedPath=null;
         this.subtree=null;
         this.removeProperty(NODE_PATH);
         this.clearTestElementChildren();
@@ -121,66 +112,16 @@ public class ImportController extends GenericController implements ReplaceableCo
     }
 
     /**
-     * Sets the {@link JMeterTreeNode} which represents the controller which
-     * this object is pointing to. Used for building the test case upon
-     * execution.
-     *
-     * @param tn
-     *            JMeterTreeNode
-     * @see JMeterTreeNode
-     */
-    public void setSelectedNode(JMeterTreeNode tn) {
-        selectedNode = tn;
-        setNodePath();
-    }
-
-    /**
-     * Gets the {@link JMeterTreeNode} for the Controller
-     *
-     * @return JMeterTreeNode
-     */
-    public JMeterTreeNode getSelectedNode() {
-        if (selectedNode == null){
-            restoreSelected();
-        }
-        return selectedNode;
-    }
-
-    private void setNodePath() {
-        List<String> nodePath = new ArrayList<>();
-        if (selectedNode != null) {
-            TreeNode[] path = selectedNode.getPath();
-            for (TreeNode node : path) {
-                nodePath.add(((JMeterTreeNode) node).getName());
-            }
-        }
-        setProperty(new CollectionProperty(NODE_PATH, nodePath));
-    }
-
-    public List<?> getNodePath() {
-        JMeterProperty prop = getProperty(NODE_PATH);
-        if (!(prop instanceof NullProperty)) {
-            return (List<?>) prop.getObjectValue();
-        }
-        return null;
-    }
-
-    private void restoreSelected() {
-        JMeterTreeNode root = this.getSubtreeNode();
-        resolveReplacementSubTree(root);
-    }
-
-    /**
      * {@inheritDoc}
      */
-    @Override
+
     public void resolveReplacementSubTree(JMeterTreeNode context) {
         // prevents from multiple cloning already resolved node
         // TODO probably needs to add check if existing subtree is relevant to selected file - for ex. when the file changed?
         if (subtree==null) {
             this.subtree = this.loadIncludedElements();
         }
-        if (subtree != null && selectedNode==null) { // indicates nested subtree and selected is not resolved
+        if (subtree != null) { // indicates nested subtree and selected is not resolved
             try {
                 if (isGuiMode()) { //!JMeter.isNonGUI()
                     //traverse through the test plan and look up for the external tree was already resolved - optimizes memory usage in GUI mode
@@ -195,47 +136,10 @@ public class ImportController extends GenericController implements ReplaceableCo
             } catch (IllegalUserActionException e) {
                 e.printStackTrace();
             }
-        }
 
-        if (selectedNode == null) {
-            List<?> nodePathList = getNodePath();
-            if (nodePathList != null && !nodePathList.isEmpty()) {
-                traverse(context, nodePathList, 1);
-            }
-            this.setProperty("isEventuallyResolved", selectedNode != null);
-/*
-            if(hasReplacementOccured() && selectedNode == null) {
-                throw new JMeterStopTestException("ModularIncludeController:"
-                        + getName()
-                        + " has no selected Controller (did you rename some element in the path to target controller?), test was shutdown as a consequence");
-            }
- */
-            // TODO temp solution, allows to skip the check of non-resolved replacementSubTree(selectedNode) in non-GUI mode
-            // but the actually missing replacement case is not covered in non-GUI mode
-            if(isGuiMode()) {
-                if(isRunningVersion() && selectedNode == null) {
-                    throw new JMeterStopTestException("ModularIncludeController:"
-                            + getName()
-                            + " has no selected Controller (did you rename some element in the path to target controller?), "
-                            + "test was shutdown as a consequence");
-                }
-            }
+          //  if (this.subtreeNode!=null)
+            //    this.addTestElement((TestElement) this.subtreeNode.getRoot());
         }
-
-
-/*
-        for (Object o : new ArrayList<>(tree.list())) {
-            TestElement item = (TestElement) o;
-            if (item instanceof ReplaceableController) {
-                if (item instanceof ModularIncludeController) {
-                    HashTree replacementTree = ((ModularIncludeController) item).loadIncludedElements();
-                    ReplaceableController rc = (ReplaceableController) item.clone();
-                    tree.replaceKey(item, rc);
-                    tree.set(rc, replacementTree);
-                }
-            }
-        }
- */
     }
 
     private JMeterTreeNode externalNodeLookup(JMeterTreeNode node){
@@ -257,85 +161,47 @@ public class ImportController extends GenericController implements ReplaceableCo
         return null;
     }
 
-    /**
-     * In GUI Mode replacement occurs when test start
-     * In Non GUI Mode replacement occurs before test runs
-     * @return true if replacement occurred at the time method is called
-     */
-    private boolean hasReplacementOccured() {
-        log.debug("isRunningVersion: " + isRunningVersion());
-        return GuiPackage.getInstance() == null || isRunningVersion();
-    }
-
     private boolean isGuiMode() {
         return GuiPackage.getInstance() != null;
-    }
-
-    private void traverse(JMeterTreeNode node, List<?> nodePath, int level) {
-        if (node != null && nodePath.size() > level) {
-            for (int i = 0; i < node.getChildCount(); i++) {
-                JMeterTreeNode cur = (JMeterTreeNode) node.getChildAt(i);
-                // Bug55375 - don't allow selectedNode to be a ImportIncludeController as can cause recursion
-                if (!(cur.getTestElement() instanceof ImportController)) {
-                    if (cur.getName().equals(nodePath.get(level).toString())) {
-                        if (nodePath.size() == (level + 1)) {
-                            selectedNode = cur;
-                        }
-                        traverse(cur, nodePath, level + 1);
-                    }
-                }
-            }
-        }
-    }
-
-    /**
-     * The way ReplaceableController works is clone is called first,
-     * followed by replace(HashTree) and finally getReplacementSubTree().
-     */
-    /**
-     * {@inheritDoc}
-     */
-    // returns replacement node hash tree
-    @Override
-    public HashTree getReplacementSubTree() {
-        HashTree tree = new ListedHashTree();
-        if (selectedNode != null) {
-            // Use a local variable to avoid replacing reference by modified clone (see Bug 54950)
-            JMeterTreeNode nodeToReplace = selectedNode;
-            // We clone to avoid enabling existing node
-            if (!nodeToReplace.isEnabled()) {
-                nodeToReplace = cloneTreeNode(selectedNode);
-                nodeToReplace.setEnabled(true);
-            }
-            HashTree subtree = tree.add(nodeToReplace);
-            createSubTree(subtree, nodeToReplace);
-        }
-        return tree;
     }
 
     public JMeterTreeNode buildJMeterTreeNodeFromHashTree(HashTree tree) throws IllegalUserActionException {
         log.debug("buildJMeterTreeNodeFromHashTree: " + ++countBuild);
         JMeterTreeNode rootNode = new JMeterTreeNode();
         rootNode.setUserObject(new TestPlan());
+        //rootNode.setUserObject(this);
         JMeterTreeModel model = new JMeterTreeModel();
         model.setRoot(rootNode);
+
         model = buildTreeModelFromSubTree(tree, (JMeterTreeNode) model.getRoot(), model);
+        /*
+        JMeterTreeNode importControllerRoot = new JMeterTreeNode();
+        importControllerRoot.setUserObject(this);
+        for (Enumeration e = model.getNodesOfType(TestPlan.class).get(0).getFirstChild().children(); e.hasMoreElements();)
+            importControllerRoot.add((MutableTreeNode) e.nextElement());
+
+        model.setRoot(importControllerRoot);
+*/
         return (JMeterTreeNode) model.getRoot();
     }
 
     public JMeterTreeModel buildTreeModelFromSubTree(HashTree subTree, JMeterTreeNode current, JMeterTreeModel model) {
         for (Object o : subTree.list()) {
             TestElement item = (TestElement) o;
+
             if (item instanceof TestPlan) {
+
                 TestPlan tp = (TestPlan) item;
                 current = (JMeterTreeNode)model.getRoot();
-                TestPlan userObj = new TestPlan();
+                TestElement userObj = new TestPlan();
                 current.setUserObject(userObj);
                 final TestPlan userObject = (TestPlan) current.getUserObject();
                 userObject.addTestElement(item);
                 userObject.setName(item.getName());
                 userObject.setFunctionalMode(tp.isFunctionalMode());
                 userObject.setSerialized(tp.isSerialized());
+
+        //        current.setUserObject(item);
                 buildTreeModelFromSubTree(subTree.getTree(item), current, model);
             }
             else {
@@ -348,7 +214,7 @@ public class ImportController extends GenericController implements ReplaceableCo
                     if (((ReplaceableController) item).getReplacementSubTree().size()==0) {
                         ((ReplaceableController) item).resolveReplacementSubTree(testPlanRootNode);
                     }
-                    //log.info("current replaceble: " + item.getName() + ": " + ((ReplaceableController) item).getReplacementSubTree());
+                    //log.info("current replaceable: " + item.getName() + ": " + ((ReplaceableController) item).getReplacementSubTree());
 
                 }
                 JMeterTreeNode newNode = new JMeterTreeNode(item, model);
@@ -411,7 +277,7 @@ public class ImportController extends GenericController implements ReplaceableCo
                         log.info("loadIncludedElements -Attempting to read it from: {}", file.getAbsolutePath());
                     }
                     if(!file.canRead() || !file.isFile()){
-                        log.error("Modular Include Controller '{}' can't load '{}' - see log for details", this.getName(),
+                        log.error("Import Controller '{}' can't load '{}' - see log for details", this.getName(),
                                 fileName);
                         throw new IOException("loadIncludedElements -failed for: " + absolutePath +
                                 " and " + file.getAbsolutePath());
@@ -428,18 +294,18 @@ public class ImportController extends GenericController implements ReplaceableCo
             } catch (NoClassDefFoundError ex) // Allow for missing optional jars
             {
                 String msg = "Including file \""+ fileName
-                        + "\" failed for Modular Include Controller \""+ this.getName()
+                        + "\" failed for Import Controller \""+ this.getName()
                         +"\", missing jar file";
                 log.warn(msg, ex);
                 JMeterUtils.reportErrorToUser(msg+" - see log for details");
             } catch (FileNotFoundException ex) {
                 String msg = "File \""+ fileName
-                        + "\" not found for Modular Include Controller \""+ this.getName()+"\"";
+                        + "\" not found for Import Controller \""+ this.getName()+"\"";
                 JMeterUtils.reportErrorToUser(msg+" - see log for details");
                 log.warn(msg, ex);
             } catch (Exception ex) {
                 String msg = "Including file \"" + fileName
-                        + "\" failed for Modular Include Controller \"" + this.getName()
+                        + "\" failed for Import Controller \"" + this.getName()
                         +"\", unexpected error";
                 JMeterUtils.reportErrorToUser(msg+" - see log for details");
                 log.warn(msg, ex);
@@ -447,31 +313,6 @@ public class ImportController extends GenericController implements ReplaceableCo
         }
         return tree;
     }
-
-    /**
-     * Extract from tree (included test plan) all Test Elements located in a Test Fragment
-     * @param tree HashTree included Test Plan
-     * @return HashTree Subset within Test Fragment or Empty HashTree
-     */
-    private HashTree getProperBranch(HashTree tree) {
-        for (Object o : new ArrayList<>(tree.list())) {
-            TestElement item = (TestElement) o;
-
-            //if we found a TestPlan, then we are on our way to the TestFragment
-            if (item instanceof TestPlan)
-            {
-                return getProperBranch(tree.getTree(item));
-            }
-
-            if (item instanceof TestFragmentController)
-            {
-                return tree.getTree(item);
-            }
-        }
-        log.warn("No Test Fragment was found in included Test Plan, returning empty HashTree");
-        return new HashTree();
-    }
-
 
     private void removeDisabledItems(HashTree tree) {
         for (Object o : new ArrayList<>(tree.list())) {
