@@ -23,8 +23,11 @@ import java.awt.FlowLayout;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
 import java.io.File;
+import java.io.IOException;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Iterator;
+import java.util.Map;
 
 import javax.swing.Box;
 import javax.swing.BoxLayout;
@@ -43,6 +46,7 @@ import javax.swing.tree.TreeNode;
 import javax.swing.tree.TreePath;
 import javax.swing.tree.TreeSelectionModel;
 
+import org.apache.jmeter.NewDriver;
 import org.apache.jmeter.control.Controller;
 import org.apache.jmeter.control.ModularIncludeController;
 import org.apache.jmeter.control.ReplaceableController;
@@ -61,11 +65,15 @@ import org.apache.jmeter.threads.AbstractThreadGroup;
 import org.apache.jmeter.util.JMeterUtils;
 import org.apache.jorphan.gui.JFactory;
 import org.apache.jorphan.gui.layout.VerticalLayout;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 
 @GUIMenuSortOrder(MenuInfo.SORT_ORDER_DEFAULT+2)
 @TestElementMetadata(labelResource = "modular_include_controller_title")
 public class ModularIncludeControllerGui extends AbstractControllerGui implements ActionListener { // NOSONAR Ignore parent warning
+    private static final Logger log = LoggerFactory.getLogger(ModularIncludeControllerGui.class);
+
     //private static final long serialVersionUID = -4195441608252523573L; // TODO what's that for?
 
     private final FilePanel includePanel =
@@ -337,7 +345,6 @@ public class ModularIncludeControllerGui extends AbstractControllerGui implement
 
         // TODO button to open imported jmx file in new jmeter gui instance?
 
-        // TODO add tree refresh button?
         reloadTreeButton = new JButton(JMeterUtils.getResString("modular_include_controller_refresh_tree")); //$NON-NLS-1$
         reloadTreeButton.addActionListener(this);
         modulesPanel.add(reloadTreeButton);
@@ -429,15 +436,20 @@ public class ModularIncludeControllerGui extends AbstractControllerGui implement
             GuiPackage.getInstance().updateCurrentGui();
         }
         if (e.getSource() == openIncludedTestPlanButton) {
-            /*
-            ProcessBuilder pb = new ProcessBuilder("myshellScript.sh", "myArg1", "myArg2");
+            String jmeterBinDir = NewDriver.getJMeterDir() + File.separator
+                    + "bin" + File.separator;
+            String[] command = new String[]{"java", "org.apache.jmeter.NewDriver", "-t", getAbsoluteFilePath(this.includePanel.getFilename())};
+            ProcessBuilder pb = new ProcessBuilder(command);
             Map<String, String> env = pb.environment();
-            env.put("VAR1", "myValue");
-            env.remove("OTHERVAR");
-            env.put("VAR2", env.get("VAR1") + "suffix");
-            pb.directory(new File("myDir"));
-            Process p = pb.start();*/
-            org.apache.jmeter.NewDriver.main(new String[] {"-t", getAbsoluteFilePath(this.includePanel.getFilename())});
+            env.put("CLASSPATH", System.getProperty("java.class.path"));
+            pb.directory(new File(jmeterBinDir));
+            try {
+                log.info("Opening file in a new window: " + Arrays.toString(command));
+                pb.start();
+            }
+            catch (IOException ex) {
+                log.error("Couldn't run a new jmeter instance!", ex);
+            }
         }
 
     }
@@ -451,7 +463,7 @@ public class ModularIncludeControllerGui extends AbstractControllerGui implement
         else {
             return filename;
         }
-    };
+    }
 
     private String getRelativeFilePath(String filename){
         File file = new File(filename);
@@ -462,7 +474,7 @@ public class ModularIncludeControllerGui extends AbstractControllerGui implement
         else {
             return filename;
         }
-    };
+    }
 
     /**
      * Reinitializes the visual representation of JMeter Tree keeping only the Controllers, Test Fragment, Thread Groups, Test Plan
