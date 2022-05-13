@@ -99,6 +99,7 @@ public class ModularIncludeController extends GenericController implements Repla
         this.subtreeNode=null;
         this.selectedPath=null;
         this.subtree=null;
+        eventuallyResolvedExternalTreeNode.remove(this.getIncludePath());
         this.removeProperty(NODE_PATH);
         this.clearTestElementChildren();
     }
