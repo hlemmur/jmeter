@@ -31,7 +31,6 @@ import org.apache.jmeter.gui.GuiPackage;
 import org.apache.jmeter.gui.tree.JMeterTreeModel;
 import org.apache.jmeter.gui.tree.JMeterTreeNode;
 import org.apache.jmeter.save.SaveService;
-import org.apache.jmeter.services.FileServer;
 import org.apache.jmeter.testelement.TestElement;
 import org.apache.jmeter.testelement.TestPlan;
 import org.apache.jmeter.testelement.property.CollectionProperty;
@@ -62,7 +61,7 @@ public class ModularIncludeController extends GenericController implements Repla
 
     private static  final String PREFIX =
             JMeterUtils.getPropDefault(
-                    "includecontroller.prefix",
+                    "modularincludecontroller.prefix",
                     "");
 
     private HashTree subtree = null;
@@ -369,7 +368,7 @@ public class ModularIncludeController extends GenericController implements Repla
         if (includePath != null && includePath.length() > 0) {
             String fileName=PREFIX+includePath;
             try {
-                File file = new File(FileServer.getFileServer().getBaseDir(), includePath);
+                File file = new File(PREFIX, includePath);
                 final String absolutePath = file.getAbsolutePath();
                 log.info("loadIncludedElements -- try to load included module: {}", absolutePath);
                 if(!file.exists() && !file.isAbsolute()){

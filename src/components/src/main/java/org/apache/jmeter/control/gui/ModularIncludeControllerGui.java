@@ -58,7 +58,6 @@ import org.apache.jmeter.gui.tree.JMeterTreeNode;
 import org.apache.jmeter.gui.util.FilePanel;
 import org.apache.jmeter.gui.util.MenuFactory;
 import org.apache.jmeter.gui.util.MenuInfo;
-import org.apache.jmeter.services.FileServer;
 import org.apache.jmeter.testelement.TestElement;
 import org.apache.jmeter.testelement.TestPlan;
 import org.apache.jmeter.threads.AbstractThreadGroup;
@@ -68,13 +67,17 @@ import org.apache.jorphan.gui.layout.VerticalLayout;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-
 @GUIMenuSortOrder(MenuInfo.SORT_ORDER_DEFAULT+2)
 @TestElementMetadata(labelResource = "modular_include_controller_title")
 public class ModularIncludeControllerGui extends AbstractControllerGui implements ActionListener { // NOSONAR Ignore parent warning
     private static final Logger log = LoggerFactory.getLogger(ModularIncludeControllerGui.class);
 
     //private static final long serialVersionUID = -4195441608252523573L; // TODO what's that for?
+
+    private static  final String PREFIX =
+            JMeterUtils.getPropDefault(
+                    "modularincludecontroller.prefix",
+                    "");
 
     private final FilePanel includePanel =
             new FilePanel(JMeterUtils.getResString("include_path"), ".jmx"); //$NON-NLS-1$ //$NON-NLS-2$
@@ -282,6 +285,7 @@ public class ModularIncludeControllerGui extends AbstractControllerGui implement
         // current limitation - included files must be under the same dir as the parent test plan
         // TODO what if there is a need to import files from another dir? maybe to use approach of jmeter property lookup lib dir
         // or leave the absolute path but parametrize with file path variable
+        //controller.setIncludePath(getRelativeFilePath(this.includePanel.getFilename()));
         controller.setIncludePath(getRelativeFilePath(this.includePanel.getFilename()));
 
         JMeterTreeNode tn = null;
@@ -456,9 +460,9 @@ public class ModularIncludeControllerGui extends AbstractControllerGui implement
 
     private String getAbsoluteFilePath(String filename){
         File file = new File(filename);
-        String currentBaseDir = FileServer.getFileServer().getBaseDir();
+        //String currentBaseDir = FileServer.getFileServer().getBaseDir();
         if (!file.isAbsolute()) {
-            return (new File(currentBaseDir)).toPath().resolve(file.toPath()).toString();
+            return (new File(PREFIX)).toPath().resolve(file.toPath()).toString();
         }
         else {
             return filename;
@@ -467,9 +471,9 @@ public class ModularIncludeControllerGui extends AbstractControllerGui implement
 
     private String getRelativeFilePath(String filename){
         File file = new File(filename);
-        String currentBaseDir = FileServer.getFileServer().getBaseDir();
+        //String currentBaseDir = FileServer.getFileServer().getBaseDir();
         if (file.isAbsolute()) {
-            return (new File(currentBaseDir)).toPath().relativize(file.toPath()).toString();
+            return (new File(PREFIX)).toPath().relativize(file.toPath()).toString();
         }
         else {
             return filename;
