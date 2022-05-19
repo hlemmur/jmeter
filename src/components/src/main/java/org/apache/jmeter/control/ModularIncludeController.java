@@ -86,7 +86,7 @@ public class ModularIncludeController extends GenericController implements Repla
             clone.subtreeNode = (JMeterTreeNode) this.getSubtreeNode().clone(); // TODO clone will not have children/parents
         }
         if (selectedNode == null) {
-            this.restoreSelected();
+            resolveReplacementSubTree();
         }
         // TODO Should we clone instead the selectedNode?
         clone.selectedNode = selectedNode;
@@ -145,7 +145,7 @@ public class ModularIncludeController extends GenericController implements Repla
      */
     public JMeterTreeNode getSelectedNode() {
         if (selectedNode == null){
-            restoreSelected();
+            resolveReplacementSubTree();
         }
         return selectedNode;
     }
@@ -169,11 +169,9 @@ public class ModularIncludeController extends GenericController implements Repla
         return null;
     }
 
-    private void restoreSelected() {
-        JMeterTreeNode root = this.getSubtreeNode();
-        resolveReplacementSubTree(root);
+    public void resolveReplacementSubTree(){
+        resolveReplacementSubTree(this.getSubtreeNode());
     }
-
     /**
      * {@inheritDoc}
      */
@@ -200,17 +198,21 @@ public class ModularIncludeController extends GenericController implements Repla
             List<?> nodePathList = getNodePath();
             if (nodePathList != null && !nodePathList.isEmpty()) {
                 traverse(context, nodePathList, 1);
+                // trick to resolve selected relatively to external tree when called in non-GUI mode from Jmeter.runNonGui(), line 1066
+                if (selectedNode == null) {
+                    traverse(this.getSubtreeNode(), nodePathList, 1);
+                }
             }
             if (selectedNode != null){
                 eventuallyResolvedExternalTreeNode.put(this.getIncludePath(), this.subtreeNode);
             }
-/*
+
             if(hasReplacementOccured() && selectedNode == null) {
                 throw new JMeterStopTestException("ModularIncludeController:"
                         + getName()
                         + " has no selected Controller (did you rename some element in the path to target controller?), test was shutdown as a consequence");
             }
- */
+
             // TODO temp solution, allows to skip the check of non-resolved replacementSubTree(selectedNode) in non-GUI mode
             // but the actually missing replacement case is not covered in non-GUI mode
             if(isGuiMode()) {
@@ -310,7 +312,7 @@ public class ModularIncludeController extends GenericController implements Repla
                     // adding (external) root Test Plan to match the (external) node path
                     JMeterTreeNode testPlanRootNode = new JMeterTreeNode();
                     testPlanRootNode.setUserObject(new TestPlan());
-                    testPlanRootNode.add(cloneTreeNode(this.subtreeNode)); // clone to not affect selection tree
+                    testPlanRootNode.add(cloneTreeNode(this.getSubtreeNode())); // clone to not affect selection tree
 
                     if (((ReplaceableController) item).getReplacementSubTree().size()==0) {
                         ((ReplaceableController) item).resolveReplacementSubTree(testPlanRootNode);

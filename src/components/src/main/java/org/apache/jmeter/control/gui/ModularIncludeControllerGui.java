@@ -191,10 +191,7 @@ public class ModularIncludeControllerGui extends AbstractControllerGui implement
         init();
 
         moduleToRunTreeNodes.addTreeSelectionListener(
-                evt -> {
-                    warningLabel.setVisible(false);
-                    //reloadTreeButton.setEnabled(true);
-                });
+                evt -> warningLabel.setVisible(false));
         includePanel.addChangeListener(
                 evt -> {
                     // reset the test element on external file selection and refresh gui correspondingly
@@ -281,11 +278,7 @@ public class ModularIncludeControllerGui extends AbstractControllerGui implement
         configureTestElement(element);
         ModularIncludeController controller = (ModularIncludeController)element;
 
-        // save the relative external filename instead of absolute one
-        // current limitation - included files must be under the same dir as the parent test plan
-        // TODO what if there is a need to import files from another dir? maybe to use approach of jmeter property lookup lib dir
-        // or leave the absolute path but parametrize with file path variable
-        //controller.setIncludePath(getRelativeFilePath(this.includePanel.getFilename()));
+        // save the relative external filename instead of absolute one, relative to PREFIX property
         controller.setIncludePath(getRelativeFilePath(this.includePanel.getFilename()));
 
         JMeterTreeNode tn = null;
@@ -346,8 +339,6 @@ public class ModularIncludeControllerGui extends AbstractControllerGui implement
         add(includePanel);
 
         JPanel modulesPanel = new JPanel();
-
-        // TODO button to open imported jmx file in new jmeter gui instance?
 
         reloadTreeButton = new JButton(JMeterUtils.getResString("modular_include_controller_refresh_tree")); //$NON-NLS-1$
         reloadTreeButton.addActionListener(this);
