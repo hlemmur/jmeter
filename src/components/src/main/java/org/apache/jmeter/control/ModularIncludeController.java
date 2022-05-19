@@ -212,17 +212,6 @@ public class ModularIncludeController extends GenericController implements Repla
                         + getName()
                         + " has no selected Controller (did you rename some element in the path to target controller?), test was shutdown as a consequence");
             }
-
-            // TODO temp solution, allows to skip the check of non-resolved replacementSubTree(selectedNode) in non-GUI mode
-            // but the actually missing replacement case is not covered in non-GUI mode
-            if(isGuiMode()) {
-                if(isRunningVersion() && selectedNode == null) {
-                    throw new JMeterStopTestException("ModularIncludeController:"
-                            + getName()
-                            + " has no selected Controller (did you rename some element in the path to target controller?), "
-                            + "test was shutdown as a consequence");
-                }
-            }
         }
     }
 
@@ -234,10 +223,6 @@ public class ModularIncludeController extends GenericController implements Repla
     private boolean hasReplacementOccured() {
         log.debug("isRunningVersion: " + isRunningVersion());
         return GuiPackage.getInstance() == null || isRunningVersion();
-    }
-
-    private boolean isGuiMode() {
-        return GuiPackage.getInstance() != null;
     }
 
     private void traverse(JMeterTreeNode node, List<?> nodePath, int level) {
