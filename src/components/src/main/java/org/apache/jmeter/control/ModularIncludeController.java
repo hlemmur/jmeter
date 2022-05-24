@@ -49,9 +49,11 @@ import java.util.concurrent.ConcurrentHashMap;
 public class ModularIncludeController extends GenericController implements ReplaceableController {
     private static int countBuild =0;
     private static int countCached =0;
+    private static int countCachedTree =0;
     private static final Logger log = LoggerFactory.getLogger(ModularIncludeController.class);
     // private static final long serialVersionUID = 240L; //TODO what's that for?
     private static final Map<String, JMeterTreeNode> eventuallyResolvedExternalTreeNode = new ConcurrentHashMap<>();
+    private static final Map<String, HashTree> externalTree = new ConcurrentHashMap<>();
 
     private static final String NODE_PATH = "ModularIncludeController.node_path";
     private static final String INCLUDE_PATH = "ModularIncludeController.includepath";
@@ -74,6 +76,7 @@ public class ModularIncludeController extends GenericController implements Repla
      */
     public ModularIncludeController() {
         super();
+        this.setProperty("isExternalFileLoadError", false);
     }
 
     @Override
@@ -99,6 +102,7 @@ public class ModularIncludeController extends GenericController implements Repla
         this.selectedPath=null;
         this.subtree=null;
         eventuallyResolvedExternalTreeNode.remove(this.getIncludePath());
+        externalTree.remove(this.getIncludePath());
         this.removeProperty(NODE_PATH);
         this.clearTestElementChildren();
     }
@@ -177,10 +181,14 @@ public class ModularIncludeController extends GenericController implements Repla
      */
     @Override
     public void resolveReplacementSubTree(JMeterTreeNode context) {
-        // prevents from multiple cloning already resolved node
-        // TODO probably needs to add check if existing subtree is relevant to selected file - for ex. when the file changed?
+        // prevents from multiple cloning of already resolved node
+        // TODO probably needs to add check if existing subtree is corresponding to selected file - for ex. when the external file changed?
         if (subtree==null) {
-            this.subtree = this.loadIncludedElements();
+            HashTree loadedExternalTree = externalTree.get(this.getIncludePath());
+            this.subtree = (loadedExternalTree ==null && !this.getPropertyAsBoolean("isExternalFileLoadError")) ? this.loadIncludedElements() : loadedExternalTree;
+            if (loadedExternalTree != null) {
+                log.debug("get external tree from cache: " + ++countCachedTree);
+            }
         }
         if (subtree != null && selectedNode==null) { // indicates nested subtree and selected is not resolved
             try {
@@ -357,7 +365,7 @@ public class ModularIncludeController extends GenericController implements Repla
             try {
                 File file = new File(PREFIX, includePath);
                 final String absolutePath = file.getAbsolutePath();
-                log.info("loadIncludedElements -- try to load included module: {}", absolutePath);
+                log.info("loadIncludedElements -- try to load test tree from included file: {}", absolutePath);
                 if(!file.exists() && !file.isAbsolute()){
                     file = new File(fileName.trim());
                     log.info("loadIncludedElements -failed for: {}", absolutePath);
@@ -376,6 +384,9 @@ public class ModularIncludeController extends GenericController implements Repla
                 // filter the tree for a TestFragment.
                 //tree = getProperBranch(tree);
                 //removeDisabledItems(tree);
+
+                externalTree.put(includePath, tree);
+                this.setProperty("isExternalFileLoadError", tree == null);
 
                 return tree;
 
@@ -399,6 +410,8 @@ public class ModularIncludeController extends GenericController implements Repla
                 log.warn(msg, ex);
             }
         }
+
+        this.setProperty("isExternalFileLoadError", tree == null);
         return tree;
     }
 

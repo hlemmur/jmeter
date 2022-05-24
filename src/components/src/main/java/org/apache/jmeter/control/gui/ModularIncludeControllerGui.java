@@ -215,6 +215,11 @@ public class ModularIncludeControllerGui extends AbstractControllerGui implement
         super.configure(el);
         hasAtLeastOneController = false;
         ModularIncludeController controller = (ModularIncludeController) el;
+
+        if (!this.includePanel.getFilename().equals(controller.getIncludePath())){
+            controller.setProperty("isExternalFileLoadError", false);
+        }
+
         this.includePanel.setFilename(controller.getIncludePath());
 
         if (doReset){
@@ -229,6 +234,8 @@ public class ModularIncludeControllerGui extends AbstractControllerGui implement
             reloadTreeButton.setEnabled(false);
             openIncludedTestPlanButton.setEnabled(false);
         }
+        // TODO what if selected but in fact controller is changed in the file so not relevant??????
+        // how to check integrity?????
         else if (selected == null && controller.getNodePath() != null) {
             warningLabel.setText(JMeterUtils.getResString("modular_include_controller_warning") // $NON-NLS-1$
                     + renderPath(controller.getNodePath()));
@@ -240,6 +247,16 @@ public class ModularIncludeControllerGui extends AbstractControllerGui implement
             reloadTreeButton.setEnabled(true);
             openIncludedTestPlanButton.setEnabled(true);
         }
+
+        if (controller.getPropertyAsBoolean("isExternalFileLoadError")){
+            controller.reset();
+            this.includePanel.setFilename("");
+            moduleToRunTreeNodes.setVisible(false);
+            warningLabel.setVisible(false);
+            reloadTreeButton.setEnabled(false);
+            openIncludedTestPlanButton.setEnabled(false);
+        }
+
         reinitialize(controller);
     }
 
@@ -431,19 +448,25 @@ public class ModularIncludeControllerGui extends AbstractControllerGui implement
             GuiPackage.getInstance().updateCurrentGui();
         }
         if (e.getSource() == openIncludedTestPlanButton) {
-            String jmeterBinDir = NewDriver.getJMeterDir() + File.separator
-                    + "bin" + File.separator;
-            String[] command = new String[]{"java", "org.apache.jmeter.NewDriver", "-t", getAbsoluteFilePath(this.includePanel.getFilename())};
-            ProcessBuilder pb = new ProcessBuilder(command);
-            Map<String, String> env = pb.environment();
-            env.put("CLASSPATH", System.getProperty("java.class.path"));
-            pb.directory(new File(jmeterBinDir));
-            try {
-                log.info("Opening file in a new window: " + Arrays.toString(command));
-                pb.start();
+            String absoluteFilename = getAbsoluteFilePath(this.includePanel.getFilename());
+            File file = new File(absoluteFilename);
+            if (file.exists()) {
+                String jmeterBinDir = NewDriver.getJMeterDir() + File.separator
+                        + "bin" + File.separator;
+                String[] command = new String[]{"java", "org.apache.jmeter.NewDriver", "-t", absoluteFilename};
+                ProcessBuilder pb = new ProcessBuilder(command);
+                Map<String, String> env = pb.environment();
+                env.put("CLASSPATH", System.getProperty("java.class.path"));
+                pb.directory(new File(jmeterBinDir));
+                try {
+                    log.info("Opening file in a new window: " + Arrays.toString(command));
+                    pb.start();
+                } catch (IOException ex) {
+                    JMeterUtils.reportErrorToUser("Couldn't run a new jmeter instance!", ex);
+                }
             }
-            catch (IOException ex) {
-                log.error("Couldn't run a new jmeter instance!", ex);
+            else{
+                JMeterUtils.reportErrorToUser("File " + absoluteFilename + " doesn't exist!");
             }
         }
 
