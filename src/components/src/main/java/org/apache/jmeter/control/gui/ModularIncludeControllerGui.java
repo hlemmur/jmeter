@@ -195,7 +195,6 @@ public class ModularIncludeControllerGui extends AbstractControllerGui implement
         includePanel.addChangeListener(
                 evt -> {
                     // reset the test element on external file selection and refresh gui correspondingly
-                    // TODO skip on initial creation?
                     selected = null;
                     moduleToRunTreeNodes.clearSelection();
                     doReset = true; // affects this.configure() called by updateCurrentGui()
@@ -216,19 +215,20 @@ public class ModularIncludeControllerGui extends AbstractControllerGui implement
         hasAtLeastOneController = false;
         ModularIncludeController controller = (ModularIncludeController) el;
 
-        if (!this.includePanel.getFilename().equals(controller.getIncludePath())){
+        // forces reloading the external file only in case when the file is different
+        if (!this.includePanel.getFilename().equals(controller.getIncludePath())) {
             controller.setProperty("isExternalFileLoadError", false);
         }
 
         this.includePanel.setFilename(controller.getIncludePath());
 
-        if (doReset){
+        if (doReset) {
             controller.reset();
-            doReset =false;
+            doReset = false;
         }
 
         this.selected = controller.getSelectedNode();
-        if (this.includePanel.getFilename().equals("") || this.includePanel.getFilename()==null){
+        if (this.includePanel.getFilename().equals("") || this.includePanel.getFilename() == null) {
             moduleToRunTreeNodes.setVisible(false);
             warningLabel.setVisible(false);
             reloadTreeButton.setEnabled(false);
@@ -240,15 +240,14 @@ public class ModularIncludeControllerGui extends AbstractControllerGui implement
             warningLabel.setText(JMeterUtils.getResString("modular_include_controller_warning") // $NON-NLS-1$
                     + renderPath(controller.getNodePath()));
             warningLabel.setVisible(true);
-        }
-        else {
+        } else {
             warningLabel.setVisible(false);
             moduleToRunTreeNodes.setVisible(true);
             reloadTreeButton.setEnabled(true);
             openIncludedTestPlanButton.setEnabled(true);
         }
 
-        if (controller.getPropertyAsBoolean("isExternalFileLoadError")){
+        if (controller.getPropertyAsBoolean("isExternalFileLoadError")) {
             controller.reset();
             this.includePanel.setFilename("");
             moduleToRunTreeNodes.setVisible(false);
@@ -295,21 +294,28 @@ public class ModularIncludeControllerGui extends AbstractControllerGui implement
         configureTestElement(element);
         ModularIncludeController controller = (ModularIncludeController)element;
 
-        // save the relative external filename instead of absolute one, relative to PREFIX property
-        controller.setIncludePath(getRelativeFilePath(this.includePanel.getFilename()));
-
-        JMeterTreeNode tn = null;
-        DefaultMutableTreeNode lastSelected =
-                (DefaultMutableTreeNode) this.moduleToRunTreeNodes.getLastSelectedPathComponent();
-        // TODO check if last selected corresponds the current include file - or clear it
-        if (lastSelected != null && lastSelected.getUserObject() instanceof JMeterTreeNode) {
-            tn = (JMeterTreeNode) lastSelected.getUserObject();
+        // check if file is not self-included
+        if (getAbsoluteFilePath(this.includePanel.getFilename()).equals(GuiPackage.getInstance().getTestPlanFile())){
+            doReset = false;
+            JMeterUtils.reportErrorToUser("Importing self project is not allowed!");
         }
-        if (tn != null) {
-            selected = tn;
-            // prevent from selecting thread group or test plan elements
-            if (isTestElementAllowed(selected.getTestElement())) {
-                controller.setSelectedNode(selected);
+        else {
+            // save the relative external filename instead of absolute one, relative to PREFIX property
+            controller.setIncludePath(getRelativeFilePath(this.includePanel.getFilename()));
+
+            JMeterTreeNode tn = null;
+            DefaultMutableTreeNode lastSelected =
+                    (DefaultMutableTreeNode) this.moduleToRunTreeNodes.getLastSelectedPathComponent();
+            // TODO check if last selected corresponds the current include file - or clear it
+            if (lastSelected != null && lastSelected.getUserObject() instanceof JMeterTreeNode) {
+                tn = (JMeterTreeNode) lastSelected.getUserObject();
+            }
+            if (tn != null) {
+                selected = tn;
+                // prevent from selecting thread group or test plan elements
+                if (isTestElementAllowed(selected.getTestElement())) {
+                    controller.setSelectedNode(selected);
+                }
             }
         }
     }

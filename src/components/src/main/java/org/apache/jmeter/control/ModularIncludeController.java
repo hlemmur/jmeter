@@ -311,7 +311,6 @@ public class ModularIncludeController extends GenericController implements Repla
                         ((ReplaceableController) item).resolveReplacementSubTree(testPlanRootNode);
                     }
                     log.debug("current replaceble: " + item.getName() + ": " + ((ReplaceableController) item).getReplacementSubTree());
-
                 }
                 JMeterTreeNode newNode = new JMeterTreeNode(item, model);
                 model.insertNodeInto(newNode, current, current.getChildCount());
